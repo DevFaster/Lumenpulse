@@ -4,6 +4,9 @@ mod errors;
 mod events;
 mod storage;
 
+#[cfg(test)]
+mod test;
+
 use errors::NotificationBrokerError;
 use notification_interface::{Notification, NotificationReceiverClient};
 use reentrancy_guard::{acquire as acquire_reentrancy, release as release_reentrancy};

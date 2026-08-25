@@ -5,6 +5,7 @@ members = [
   "contracts/crowdfund_vault",
   "contracts/lumen_token",
   "contracts/matching_pool",
+  "contracts/notification_broker",
   "contracts/notification_interface",
   "contracts/project_registry",
   "contracts/protocol_registry",
