@@ -35,6 +35,7 @@ export interface SorobanClientOptions {
   timeoutMs?: number;
   maxRetries?: number;
   initialBackoffMs?: number;
+  isReadOnly?: boolean;
 }
 
 type SimulationTraceLevel = 'off' | 'summary' | 'verbose';
@@ -127,11 +128,56 @@ export class SorobanRpcClientService {
     });
   }
 
+  private cachedLedger = { sequence: 0, expiresAt: 0 };
+  private readonly simulationCache = new Map<string, rpc.Api.SimulateTransactionResponse>();
+
+  private async getLatestLedgerSequence(): Promise<number> {
+    const now = Date.now();
+    if (now < this.cachedLedger.expiresAt) {
+      return this.cachedLedger.sequence;
+    }
+    const response = await this.server.getLatestLedger();
+    if (this.cachedLedger.sequence !== 0 && this.cachedLedger.sequence !== response.sequence) {
+      this.simulationCache.clear();
+    }
+    this.cachedLedger = { sequence: response.sequence, expiresAt: now + 2000 };
+    return response.sequence;
+  }
+
   /** Simulate a transaction with retries */
   async simulateTransaction(
     tx: Parameters<rpc.Server['simulateTransaction']>[0],
     opts?: SorobanClientOptions,
   ): Promise<rpc.Api.SimulateTransactionResponse> {
+    const isReadOnly = opts?.isReadOnly ?? false;
+    const cacheEnabled = config.stellar.simulationCacheEnabled !== false;
+
+    let cacheKey: string | undefined;
+    let expectedLedgerSequence: number | undefined;
+
+    if (isReadOnly && cacheEnabled) {
+      try {
+        const record = this.asRecord(tx);
+        const operations = Array.isArray(record.operations) ? record.operations : [];
+        if (operations.length === 1) {
+          const op = this.asRecord(operations[0]);
+          const hostFunction = op.func ?? op.hostFunction;
+          if (hostFunction && typeof (hostFunction as any).toXDR === 'function') {
+            const funcXdr = (hostFunction as any).toXDR('base64');
+            expectedLedgerSequence = await this.getLatestLedgerSequence();
+            cacheKey = `${funcXdr}_${expectedLedgerSequence}`;
+
+            const cached = this.simulationCache.get(cacheKey);
+            if (cached) {
+              return cached;
+            }
+          }
+        }
+      } catch (err) {
+        this.logger.debug(`Failed to compute simulation cache key: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     return this.withRetry('simulateTransaction', opts, async () => {
       const result = await this.server.simulateTransaction(tx);
       if (rpc.Api.isSimulationError(result)) {
@@ -142,6 +188,11 @@ export class SorobanRpcClientService {
           result,
         );
       }
+
+      if (cacheKey && result.latestLedger === expectedLedgerSequence) {
+        this.simulationCache.set(cacheKey, result);
+      }
+
       return result;
     });
   }
@@ -190,7 +241,7 @@ export class SorobanRpcClientService {
       .setTimeout(30)
       .build();
 
-    return this.simulateTransaction(tx, opts);
+    return this.simulateTransaction(tx, { ...opts, isReadOnly: true });
   }
 
   /** Expose the raw server for advanced usage */
