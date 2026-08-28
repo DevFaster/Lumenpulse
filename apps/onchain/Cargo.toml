@@ -17,7 +17,8 @@ members = [
   "contracts/idempotency-guard",
   "contracts/yield_vault",
   "contracts/feature_flags",
-  "contracts/contract_registry"
+  "contracts/contract_registry",
+  "contracts/liquidity_pool"
 ]
 exclude = ["contracts/tests"]
 
