@@ -5,6 +5,7 @@ import { ModerationService } from './moderation.service';
 import { ModerationController } from './moderation.controller';
 import { ContentReport } from './entities/content-report.entity';
 import { ModerationEventPublisherService } from './services/moderation-event-publisher.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { ModerationEventPublisherService } from './services/moderation-event-pub
     BullModule.registerQueue({
       name: 'moderation-events',
     }),
+    AuditModule,
   ],
   providers: [ModerationService, ModerationEventPublisherService],
   controllers: [ModerationController],

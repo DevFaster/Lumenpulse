@@ -5,8 +5,10 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Patch,
   Put,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -31,6 +33,7 @@ import {
   ProjectSubmissionDto,
   SubmissionStatus,
   SubmissionActionDto,
+  AssignSubmissionReviewerDto,
 } from './dto/verification.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -200,13 +203,17 @@ export class VerificationController {
       'Returns project submissions across draft/review/approval/publish workflow states.',
   })
   @ApiQuery({ name: 'status', required: false, enum: SubmissionStatus })
+  @ApiQuery({ name: 'reviewerId', required: false, description: 'Filter by reviewer ID or "unassigned"' })
   @ApiResponse({
     status: 200,
     description: 'Submission records retrieved successfully',
     type: [ProjectSubmissionDto],
   })
-  listSubmissions(@Query('status') status?: SubmissionStatus) {
-    return this.svc.listSubmissions(status);
+  listSubmissions(
+    @Query('status') status?: SubmissionStatus,
+    @Query('reviewerId') reviewerId?: string,
+  ) {
+    return this.svc.listSubmissions(status, reviewerId);
   }
 
   @Get('submissions/:id')
@@ -260,6 +267,21 @@ export class VerificationController {
     @Body() dto: SubmissionActionDto,
   ) {
     return this.svc.requestSubmissionChanges(id, dto);
+  }
+
+  @Patch('submissions/:id/assign')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Assign a reviewer to a submission (Admin only)',
+  })
+  assignReviewer(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignSubmissionReviewerDto,
+  ) {
+    return this.svc.assignReviewer(id, req.user.id, dto.reviewerId);
   }
 
   @Post('submissions/:id/approve')
