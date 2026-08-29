@@ -233,3 +233,6 @@ impl NotificationBrokerContract {
             .unwrap_or(vec![&env]))
     }
 }
+
+#[cfg(test)]
+mod test;
