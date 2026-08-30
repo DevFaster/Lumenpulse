@@ -10,7 +10,7 @@ mod test;
 use errors::NotificationBrokerError;
 use notification_interface::{Notification, NotificationReceiverClient};
 use reentrancy_guard::{acquire as acquire_reentrancy, release as release_reentrancy};
-use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec, vec};
+use soroban_sdk::{contract, contractimpl, vec, Address, Env, Symbol, Vec};
 use storage::{DataKey, ListenerSubscription};
 
 #[contract]
@@ -43,8 +43,7 @@ impl NotificationBrokerContract {
 
         release_reentrancy(&env)?;
 
-        events::InitializedEvent { admin }
-            .publish(&env);
+        events::InitializedEvent { admin }.publish(&env);
 
         Ok(())
     }
@@ -81,16 +80,10 @@ impl NotificationBrokerContract {
             timestamp: env.ledger().timestamp(),
         };
 
-        let key = DataKey::Subscription(
-            listener.clone(),
-            source.clone(),
-            event_type.clone(),
-        );
+        let key = DataKey::Subscription(listener.clone(), source.clone(), event_type.clone());
 
         env.storage().persistent().set(&key, &subscription);
-        env.storage()
-            .persistent()
-            .bump(&key, 100, 1_000_000);
+        env.storage().persistent().bump(&key, 100, 1_000_000);
 
         // Add to listener's subscription list for easy enumeration
         let mut listeners_for_source: Vec<Address> = env
@@ -178,19 +171,15 @@ impl NotificationBrokerContract {
 
         // Send notification to each listener that subscribes to this event type
         for listener in listeners.iter() {
-            let event_type_key =
-                DataKey::Subscription(listener.clone(), source.clone(), Some(notification.event_type.clone()));
-            let any_type_key =
-                DataKey::Subscription(listener.clone(), source.clone(), None);
+            let event_type_key = DataKey::Subscription(
+                listener.clone(),
+                source.clone(),
+                Some(notification.event_type.clone()),
+            );
+            let any_type_key = DataKey::Subscription(listener.clone(), source.clone(), None);
 
-            let subscribed_to_event = env
-                .storage()
-                .persistent()
-                .has(&event_type_key);
-            let subscribed_to_all = env
-                .storage()
-                .persistent()
-                .has(&any_type_key);
+            let subscribed_to_event = env.storage().persistent().has(&event_type_key);
+            let subscribed_to_all = env.storage().persistent().has(&any_type_key);
 
             if subscribed_to_event || subscribed_to_all {
                 // Call the listener's on_notify method

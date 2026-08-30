@@ -142,10 +142,7 @@ fn test_subscribe_emits_subscription_event() {
     assert!(!events.is_empty());
 
     let found_subscription_event = events.iter().any(|(contract_address, topics, _data)| {
-        let topic_strs: Vec<String> = topics
-            .iter()
-            .map(|t| t.to_string())
-            .collect();
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
         contract_address == client.address && topic_strs.iter().any(|s| s.contains("SubscriptionEvent"))
     });
     assert!(
@@ -234,10 +231,7 @@ fn test_unsubscribe_emits_unsubscribe_event() {
 
     let events = env.events().all();
     let found_unsubscribe_event = events.iter().any(|(contract_address, topics, _data)| {
-        let topic_strs: Vec<String> = topics
-            .iter()
-            .map(|t| t.to_string())
-            .collect();
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
         contract_address == client.address
             && topic_strs.iter().any(|s| s.contains("SubscriptionEvent"))
     });
@@ -350,7 +344,11 @@ fn test_notify_respects_event_type_filter() {
     let deposit_only_receiver = register_receiver(&env);
 
     client.subscribe(&all_events_receiver, &source, &None);
-    client.subscribe(&deposit_only_receiver, &source, &Some(symbol_short!("deposit")));
+    client.subscribe(
+        &deposit_only_receiver,
+        &source,
+        &Some(symbol_short!("deposit")),
+    );
 
     let notification = make_notification(&env, &source, symbol_short!("deposit"));
     let count = client.notify(&source, &notification);
@@ -378,10 +376,7 @@ fn test_notify_emits_notification_emitted_event() {
 
     let events = env.events().all();
     let found_emitted_event = events.iter().any(|(contract_address, topics, _data)| {
-        let topic_strs: Vec<String> = topics
-            .iter()
-            .map(|t| t.to_string())
-            .collect();
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
         contract_address == client.address
             && topic_strs.iter().any(|s| s.contains("NotificationEmittedEvent"))
     });
@@ -514,10 +509,7 @@ fn test_initialize_emits_initialized_event() {
 
     let events = env.events().all();
     let found_initialized_event = events.iter().any(|(contract_address, topics, _data)| {
-        let topic_strs: Vec<String> = topics
-            .iter()
-            .map(|t| t.to_string())
-            .collect();
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
         contract_address == client.address
             && topic_strs.iter().any(|s| s.contains("InitializedEvent"))
     });
@@ -535,10 +527,7 @@ fn test_double_initialize_fails() {
     let (client, admin, _source, _listener) = setup(&env);
 
     let result = client.try_initialize(&admin);
-    assert_eq!(
-        result,
-        Err(Ok(NotificationBrokerError::AlreadyInitialized))
-    );
+    assert_eq!(result, Err(Ok(NotificationBrokerError::AlreadyInitialized)));
 }
 
 #[test]
@@ -579,16 +568,11 @@ fn test_initialized_event_shape_matches_mapper() {
     client.initialize(&admin);
 
     let events = env.events().all();
-    let initialized_event = events
-        .iter()
-        .find(|(contract_address, topics, _data)| {
-            let topic_strs: Vec<String> = topics
-                .iter()
-                .map(|t| t.to_string())
-                .collect();
-            contract_address == client.address
-                && topic_strs.iter().any(|s| s.contains("InitializedEvent"))
-        });
+    let initialized_event = events.iter().find(|(contract_address, topics, _data)| {
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
+        contract_address == client.address
+            && topic_strs.iter().any(|s| s.contains("InitializedEvent"))
+    });
 
     assert!(
         initialized_event.is_some(),
@@ -606,16 +590,11 @@ fn test_subscription_event_shape_matches_mapper() {
     client.subscribe(&listener, &source, &None);
 
     let events = env.events().all();
-    let subscription_event = events
-        .iter()
-        .find(|(contract_address, topics, _data)| {
-            let topic_strs: Vec<String> = topics
-                .iter()
-                .map(|t| t.to_string())
-                .collect();
-            contract_address == client.address
-                && topic_strs.iter().any(|s| s.contains("SubscriptionEvent"))
-        });
+    let subscription_event = events.iter().find(|(contract_address, topics, _data)| {
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
+        contract_address == client.address
+            && topic_strs.iter().any(|s| s.contains("SubscriptionEvent"))
+    });
 
     assert!(
         subscription_event.is_some(),
@@ -637,18 +616,13 @@ fn test_notification_emitted_event_shape_matches_mapper() {
     client.notify(&source, &notification);
 
     let events = env.events().all();
-    let emitted_event = events
-        .iter()
-        .find(|(contract_address, topics, _data)| {
-            let topic_strs: Vec<String> = topics
+    let emitted_event = events.iter().find(|(contract_address, topics, _data)| {
+        let topic_strs: Vec<String> = topics.iter().map(|t| t.to_string()).collect();
+        contract_address == client.address
+            && topic_strs
                 .iter()
-                .map(|t| t.to_string())
-                .collect();
-            contract_address == client.address
-                && topic_strs
-                    .iter()
-                    .any(|s| s.contains("NotificationEmittedEvent"))
-        });
+                .any(|s| s.contains("NotificationEmittedEvent"))
+    });
 
     assert!(
         emitted_event.is_some(),
