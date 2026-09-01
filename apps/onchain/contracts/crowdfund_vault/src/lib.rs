@@ -21,10 +21,15 @@ use storage::{
     MilestoneDecisionOutcome, MilestoneDispute, ProjectData, ProjectStorageSummary, ProtocolStats,
     RefundReceipt, LEDGER_BUMP, LEDGER_THRESHOLD, MAX_MILESTONE_DECISION_BATCH_SIZE,
 };
+use version_interface::{ContractVersion, VersionedContract};
 
 const CURRENT_STORAGE_VERSION: u32 = 1;
 const DEFAULT_MILESTONE_EXPIRY_SECONDS: u64 = 30 * 24 * 60 * 60;
 const DEFAULT_REFUND_WINDOW_SECONDS: u64 = 14 * 24 * 60 * 60;
+
+/// Bumped on storage-layout or interface changes that break compatibility
+/// with prior deployments; see [`version_interface::ContractVersion`].
+const CONTRACT_VERSION: ContractVersion = ContractVersion::new(1, 0, 0);
 
 #[contract]
 pub struct CrowdfundVaultContract;
@@ -2838,6 +2843,13 @@ impl CrowdfundVaultContract {
         yield_client.withdraw(&contract_address, &amount);
 
         Ok(())
+    }
+}
+
+#[contractimpl]
+impl VersionedContract for CrowdfundVaultContract {
+    fn contract_version(_env: Env) -> ContractVersion {
+        CONTRACT_VERSION
     }
 }
 

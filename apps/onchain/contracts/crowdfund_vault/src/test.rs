@@ -3492,3 +3492,14 @@ fn test_deposit_idempotency_zero_bytes_id_accepted_once() {
     assert_eq!(result, Err(Ok(CrowdfundError::AlreadyExecuted)));
     assert_eq!(client.get_balance(&project_id), 50_000);
 }
+
+#[test]
+fn test_contract_version() {
+    use version_interface::ContractVersion;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, ..) = setup_test(&env);
+
+    assert_eq!(client.contract_version(), ContractVersion::new(1, 0, 0));
+}

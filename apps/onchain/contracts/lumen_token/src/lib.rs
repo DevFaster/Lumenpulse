@@ -10,6 +10,11 @@ mod test;
 
 use events::{AdminChangedEvent, BurnEvent, UpgradedEvent};
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String};
+use version_interface::{ContractVersion, VersionedContract};
+
+/// Bumped on storage-layout or interface changes that break compatibility
+/// with prior deployments; see [`version_interface::ContractVersion`].
+const CONTRACT_VERSION: ContractVersion = ContractVersion::new(1, 0, 0);
 
 #[contract]
 pub struct LumenToken;
@@ -126,5 +131,12 @@ impl LumenToken {
             new_wasm_hash,
         }
         .publish(&e);
+    }
+}
+
+#[contractimpl]
+impl VersionedContract for LumenToken {
+    fn contract_version(_env: Env) -> ContractVersion {
+        CONTRACT_VERSION
     }
 }

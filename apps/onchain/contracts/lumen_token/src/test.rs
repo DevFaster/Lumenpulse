@@ -185,3 +185,14 @@ fn test_ttl_extended_after_read_write() {
     env.ledger().set_sequence_number(200_002);
     assert_eq!(client.balance(&user), 500);
 }
+
+#[test]
+fn test_contract_version() {
+    use version_interface::ContractVersion;
+
+    let env = Env::default();
+    let contract_id = env.register(LumenToken, ());
+    let client = LumenTokenClient::new(&env, &contract_id);
+
+    assert_eq!(client.contract_version(), ContractVersion::new(1, 0, 0));
+}

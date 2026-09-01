@@ -626,3 +626,12 @@ fn test_admin_rotation_cancel() {
         Err(Ok(ContractError::OperationNotFound))
     );
 }
+
+#[test]
+fn test_contract_version() {
+    use version_interface::ContractVersion;
+
+    let env = Env::default();
+    let (_, client) = setup(&env);
+    assert_eq!(client.contract_version(), ContractVersion::new(1, 0, 0));
+}

@@ -25,6 +25,11 @@ use storage::{
     AttestationStatus, Badge, ContribPauseScope, ContributorData, ContributorTier, DataKey,
     PenaltyRecord, PenaltySeverity, LEDGER_BUMP, LEDGER_THRESHOLD,
 };
+use version_interface::{ContractVersion, VersionedContract};
+
+/// Bumped on storage-layout or interface changes that break compatibility
+/// with prior deployments; see [`version_interface::ContractVersion`].
+const CONTRACT_VERSION: ContractVersion = ContractVersion::new(1, 0, 0);
 
 #[contract]
 pub struct ContributorRegistryContract;
@@ -1051,6 +1056,15 @@ impl ContributorRegistryContract {
             .instance()
             .get(&DataKey::NextProposalId)
             .unwrap_or(0)
+    }
+}
+
+// ── Version introspection ─────────────────────────────────────
+
+#[contractimpl]
+impl VersionedContract for ContributorRegistryContract {
+    fn contract_version(_env: Env) -> ContractVersion {
+        CONTRACT_VERSION
     }
 }
 

@@ -14,6 +14,11 @@ use storage::{
     OperationStatus, QueuedOperation, TimelockAction, GRACE_PERIOD_SECONDS, LEDGER_BUMP,
     LEDGER_THRESHOLD, MIN_DELAY_SECONDS,
 };
+use version_interface::{ContractVersion, VersionedContract};
+
+/// Bumped on storage-layout or interface changes that break compatibility
+/// with prior deployments; see [`version_interface::ContractVersion`].
+const CONTRACT_VERSION: ContractVersion = ContractVersion::new(1, 0, 0);
 
 #[contracttype]
 pub enum DataKey {
@@ -292,8 +297,19 @@ impl UpgradableContract {
         Ok(())
     }
 
+    /// Legacy single-integer version identifier, kept for backward
+    /// compatibility with existing callers. Prefer [`Self::contract_version`]
+    /// (issue #1046), which reports a standardized SemVer triple and
+    /// distinguishes breaking (`major`) from non-breaking upgrades.
     pub fn version() -> u32 {
         1
+    }
+}
+
+#[contractimpl]
+impl VersionedContract for UpgradableContract {
+    fn contract_version(_env: Env) -> ContractVersion {
+        CONTRACT_VERSION
     }
 }
 
