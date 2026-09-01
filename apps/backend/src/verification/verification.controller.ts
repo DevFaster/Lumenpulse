@@ -41,6 +41,13 @@ import { Roles } from '../auth/decorators/auth.decorators';
 import { UserRole } from '../users/entities/user.entity';
 import { AuditBlockchainAction } from '../admin-audit/decorators/audit-blockchain-action.decorator';
 import { AdminAuditInterceptor } from '../admin-audit/interceptors/admin-audit.interceptor';
+import { Request } from 'express';
+
+interface RequestWithUser extends Request {
+  user: {
+    id: string;
+  };
+}
 
 @ApiTags('verification')
 @Controller('verification')
@@ -277,7 +284,7 @@ export class VerificationController {
     summary: 'Assign a reviewer to a submission (Admin only)',
   })
   assignReviewer(
-    @Req() req: any,
+    @Req() req: RequestWithUser,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AssignSubmissionReviewerDto,
   ) {
