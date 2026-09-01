@@ -75,7 +75,7 @@ impl ContractRegistry {
                 .storage()
                 .instance()
                 .get(&DataKey::ContractKeys)
-                .unwrap_or_else(|| Vec::new(&env));
+                .unwrap_or_else(|| Vec::new());
             keys.push_back(key.clone());
             env.storage().instance().set(&DataKey::ContractKeys, &keys);
         }
@@ -114,9 +114,9 @@ impl ContractRegistry {
             .storage()
             .instance()
             .get(&DataKey::ContractKeys)
-            .unwrap_or_else(|| Vec::new(&env));
+            .unwrap_or_else(|| Vec::new());
             
-        let mut contracts = Vec::new(&env);
+        let mut contracts = Vec::new();
         for key in keys.into_iter() {
             if let Some(info) = env.storage().persistent().get(&DataKey::Contract(key)) {
                 contracts.push_back(info);
