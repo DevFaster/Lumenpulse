@@ -187,6 +187,43 @@ fn test_ttl_extended_after_read_write() {
 }
 
 #[test]
+fn test_allowance_ttl_extended_to_expiration_ledger() {
+    // Regression test (issue #1226): the temporary-storage allowance entry
+    // must survive on-chain long enough to reach its own logical
+    // `expiration_ledger` — a physical TTL shorter than that would let the
+    // entry get archived early and silently read back as a zero allowance.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let spender = Address::generate(&env);
+
+    let contract_id = env.register(LumenToken, ());
+    let client = LumenTokenClient::new(&env, &contract_id);
+
+    client.initialize(
+        &admin,
+        &7,
+        &String::from_str(&env, "LumenPulse"),
+        &String::from_str(&env, "LMN"),
+    );
+    client.mint(&owner, &1_000);
+
+    let far_future_expiration = 300_000u32;
+    client.approve(&owner, &spender, &500, &far_future_expiration);
+
+    // Advance well past what a short/default TTL would have survived, but
+    // still short of `far_future_expiration`. The allowance must still be
+    // intact — proving `write_allowance` extended the physical TTL out to
+    // match the caller-chosen logical expiration.
+    env.ledger().set_sequence_number(250_000);
+    assert_eq!(client.allowance(&owner, &spender), 500);
+    client.transfer_from(&spender, &owner, &spender, &200);
+    assert_eq!(client.allowance(&owner, &spender), 300);
+}
+
+#[test]
 fn test_contract_version() {
     use version_interface::ContractVersion;
 

@@ -2,7 +2,9 @@
 extern crate std;
 
 use crate::errors::ContractError;
-use crate::storage::{OperationStatus, TimelockAction, GRACE_PERIOD_SECONDS, MIN_DELAY_SECONDS};
+use crate::storage::{
+    OperationStatus, TimelockAction, GRACE_PERIOD_SECONDS, LEDGER_THRESHOLD, MIN_DELAY_SECONDS,
+};
 use crate::{UpgradableContract, UpgradableContractClient};
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
@@ -86,6 +88,44 @@ fn test_ttl_extended_after_read_write() {
     assert_eq!(client.increment(), 2);
     env.ledger().set_sequence_number(300_003);
     assert_eq!(client.get_count(), 2);
+}
+
+#[test]
+fn test_queued_operation_ttl_extended_on_read() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (_, client) = setup(&env);
+    client.init(&admin);
+
+    let action = TimelockAction::SetAdmin(new_admin.clone());
+    let id = client.queue_operation(&admin, &action);
+
+    // First threshold crossing: a read (`get_operation`) should re-bump the
+    // QueuedOperation's own persistent TTL, not just the instance TTL.
+    env.ledger().set_sequence_number(LEDGER_THRESHOLD + 1);
+    let op = client.get_operation(&id);
+    assert_eq!(op.proposer, admin);
+    assert_eq!(op.action, action);
+
+    // Second threshold crossing: this only survives if the prior read
+    // actually extended the TTL rather than leaving it to expire.
+    env.ledger().set_sequence_number(2 * LEDGER_THRESHOLD + 2);
+    let op = client.get_operation(&id);
+    assert_eq!(op.proposer, admin);
+    assert_eq!(op.action, action);
+
+    // `get_operation_status` is the other read path touching this key —
+    // confirm it also keeps the entry alive across a further advance.
+    // (Ledger *timestamp* stays at 0 throughout — only *sequence number*
+    // advances here — so the timelock itself is still Pending; this is
+    // purely exercising storage-TTL survival, not timelock state.)
+    env.ledger().set_sequence_number(3 * LEDGER_THRESHOLD + 3);
+    assert_eq!(client.get_operation_status(&id), OperationStatus::Pending);
+    env.ledger().set_sequence_number(4 * LEDGER_THRESHOLD + 4);
+    let op = client.get_operation(&id);
+    assert_eq!(op.proposer, admin);
 }
 
 // ---------------------------------------------------------------------------

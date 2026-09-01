@@ -1330,3 +1330,87 @@ fn test_only_admin_can_pause_scope() {
         Err(Ok(MatchingPoolError::Unauthorized))
     );
 }
+
+// ── Storage TTL (issue #1226) ────────────────────────────────────────────────
+
+/// Advances the ledger *sequence number* (which drives storage-entry TTL/
+/// archival) repeatedly past `LEDGER_THRESHOLD`, interleaving reads and
+/// writes across a round's full lifecycle, and asserts every touched key —
+/// instance (Admin) and persistent (Round, RoundPool, EligibleProject*,
+/// ContributorAmount, RoundStatus, FinalizedAt, MatchDistributed) — is still
+/// live and correct after each advance. This only passes if every read/write
+/// site actually re-bumps its key's TTL rather than leaving it to expire.
+#[test]
+fn test_ttl_extended_across_round_lifecycle() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, token, token_admin) = setup(&env);
+    client.initialize(&admin);
+
+    let funder = Address::generate(&env);
+    token_admin.mint(&funder, &1_000_000);
+
+    env.ledger().set_timestamp(500);
+    let round_id = client.create_round(
+        &admin,
+        &symbol_short!("R1"),
+        &token.address,
+        &1000u64,
+        &3000u64,
+    );
+    client.approve_project(&admin, &round_id, &1u64);
+    client.fund_pool(&funder, &round_id, &500_000);
+
+    // First TTL boundary: a read must survive and re-bump every key it touches.
+    env.ledger()
+        .set_sequence_number(crate::storage::LEDGER_THRESHOLD + 1);
+    assert_eq!(client.get_admin(), admin);
+    assert_eq!(client.get_round(&round_id).total_pool, 500_000);
+    assert_eq!(client.get_pool_balance(&round_id), 500_000);
+
+    let contributor = Address::generate(&env);
+    env.ledger().set_timestamp(1500); // inside the round's contribution window
+    client.record_contribution(&round_id, &1u64, &contributor, &100_000);
+    assert_eq!(client.get_project_contributions(&round_id, &1u64), 100_000);
+    assert_eq!(client.get_contributor_count(&round_id, &1u64), 1);
+    assert_eq!(
+        client.get_contributor_round_total(&round_id, &contributor),
+        100_000
+    );
+
+    // Second TTL boundary: everything written above (including the freshly
+    // recorded contribution) must still be reachable.
+    env.ledger()
+        .set_sequence_number(2 * crate::storage::LEDGER_THRESHOLD + 2);
+    assert_eq!(client.get_project_contributions(&round_id, &1u64), 100_000);
+    assert_eq!(client.get_project_qf_score(&round_id, &1u64), 100_000);
+
+    // Finalize and distribute after a third boundary crossing — exercises
+    // RoundStatus/FinalizedAt/MatchDistributed writes and the Round read
+    // that gates every mutating entrypoint.
+    env.ledger()
+        .set_sequence_number(3 * crate::storage::LEDGER_THRESHOLD + 3);
+    env.ledger().set_timestamp(3001); // past the round's end_time
+    client.finalize_round(&admin, &round_id);
+    assert_eq!(
+        client.get_round_status(&round_id),
+        symbol_short!("FINALIZED")
+    );
+
+    let owner = Address::generate(&env);
+    let distributed =
+        client.distribute_matching_funds(&admin, &round_id, &vec![&env, owner.clone()]);
+    assert_eq!(distributed, 500_000);
+    assert_eq!(token.balance(&owner), 500_000);
+
+    // Fourth boundary: post-distribution reads (RoundStatus, MatchDistributed
+    // via RoundPool reset to 0) must still resolve correctly.
+    env.ledger()
+        .set_sequence_number(4 * crate::storage::LEDGER_THRESHOLD + 4);
+    assert_eq!(
+        client.get_round_status(&round_id),
+        soroban_sdk::Symbol::new(&env, "DISTRIBUTED")
+    );
+    assert_eq!(client.get_pool_balance(&round_id), 0);
+    assert!(client.get_finalized_at(&round_id) > 0);
+}

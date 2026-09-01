@@ -6,16 +6,26 @@ use crate::events::{
     publish_signature_collected,
 };
 use crate::storage::{
-    DataKey, MultisigConfig, Proposal, ProposalAction, ProposalStatus, Signer, MAX_SIGNERS,
-    PROPOSAL_TTL_SECS,
+    DataKey, MultisigConfig, Proposal, ProposalAction, ProposalStatus, Signer, LEDGER_BUMP,
+    LEDGER_THRESHOLD, MAX_SIGNERS, PROPOSAL_TTL_SECS,
 };
 
-/// Load the multisig config from instance storage.
+/// Load the multisig config from instance storage. This is the first thing
+/// every mutating multisig entrypoint (`propose`, `sign`, `consume_approval`,
+/// `cancel`) does, so bumping the instance TTL here keeps the whole instance
+/// bucket (`Admin`, `Token`, `MultisigConfig`, `Proposal(*)`,
+/// `NextProposalId`, `TotalObligations`) alive without relying on
+/// `get_next_proposal_id` happening to be called.
 pub(crate) fn get_config(env: &Env) -> Result<MultisigConfig, TreasuryError> {
-    env.storage()
+    let config = env
+        .storage()
         .instance()
         .get(&DataKey::MultisigConfig)
-        .ok_or(TreasuryError::NotInitialized)
+        .ok_or(TreasuryError::NotInitialized)?;
+    env.storage()
+        .instance()
+        .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP);
+    Ok(config)
 }
 
 /// Locate the `Signer` record for `addr` or return `Unauthorized`.
@@ -101,10 +111,9 @@ pub(crate) fn configure(
     env.storage()
         .instance()
         .set(&DataKey::NextProposalId, &0u64);
-    env.storage().instance().extend_ttl(
-        crate::storage::LEDGER_THRESHOLD,
-        crate::storage::LEDGER_BUMP,
-    );
+    env.storage()
+        .instance()
+        .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP);
     Ok(())
 }
 
@@ -285,8 +294,12 @@ pub(crate) fn cancel(
     Ok(())
 }
 
-/// Mark an expired proposal as `Expired`. Permissionless.
+/// Mark an expired proposal as `Expired`. Permissionless. Doesn't go through
+/// `get_config` (no signer check needed), so bump the instance TTL here too.
 pub(crate) fn expire(env: &Env, proposal_id: u64) -> Result<(), TreasuryError> {
+    env.storage()
+        .instance()
+        .extend_ttl(LEDGER_THRESHOLD, LEDGER_BUMP);
     let mut proposal = get_proposal(env, proposal_id)?;
 
     match proposal.status {

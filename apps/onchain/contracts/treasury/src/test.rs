@@ -783,6 +783,42 @@ fn test_cancel_proposal_changes_status() {
     );
 }
 
+/// Regression test (issue #1226): `propose`/`sign`/`cancel` must each
+/// independently keep the instance TTL (which holds `MultisigConfig` and
+/// every in-flight `Proposal`) alive — not just `get_next_proposal_id`,
+/// which may go uncalled for long stretches while governance is still
+/// actively used.
+#[test]
+fn test_multisig_ttl_extended_across_propose_sign_cancel() {
+    let f = MultisigFixture::new();
+
+    let pid = f.client.propose(&f.signer_a, &ProposalAction::SetAdmin);
+    assert_eq!(f.client.get_proposal(&pid).status, ProposalStatus::Pending);
+
+    // Advance past the instance TTL threshold before signing — `sign` must
+    // still see `MultisigConfig` and the proposal it just bumped via
+    // `propose`'s own `get_config` call.
+    f.env
+        .ledger()
+        .set_sequence_number(crate::storage::LEDGER_THRESHOLD + 1);
+    f.client.sign_proposal(&f.signer_b, &pid);
+    assert_eq!(f.client.get_proposal(&pid).status, ProposalStatus::Approved);
+
+    // Advance past the threshold again before cancelling a second proposal —
+    // proves `sign`'s own bump (not just `propose`'s) kept things alive.
+    let pid2 = f
+        .client
+        .propose(&f.signer_a, &ProposalAction::RotateBeneficiary);
+    f.env
+        .ledger()
+        .set_sequence_number(2 * crate::storage::LEDGER_THRESHOLD + 2);
+    f.client.cancel_proposal(&f.signer_a, &pid2);
+    assert_eq!(
+        f.client.get_proposal(&pid2).status,
+        ProposalStatus::Cancelled
+    );
+}
+
 /// Threshold of 1 means a single signer with weight ≥ 1 auto-approves on propose.
 #[test]
 fn test_threshold_one_auto_approves_on_propose() {

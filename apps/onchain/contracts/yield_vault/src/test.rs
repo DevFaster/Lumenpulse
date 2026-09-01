@@ -7,7 +7,7 @@
 //! - reverts for withdrawal beyond balance and withdrawal while paused
 //! - request-id idempotency
 use super::*;
-use soroban_sdk::testutils::Address as _;
+use soroban_sdk::testutils::{Address as _, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{Address, BytesN, Env, Symbol};
 
@@ -699,4 +699,39 @@ fn test_same_request_id_not_shared_between_operations() {
 /// Resolves the address of the mock provider registered during setup.
 fn get_mock_address(f: &Fixture) -> Address {
     f.client.get_provider(&f.provider_id).address
+}
+
+// ── TTL / storage-rent (issue #1226) ────────────────────────────────
+
+#[test]
+fn test_ttl_extended_after_read_write() {
+    let f = setup();
+
+    f.client
+        .deposit(&100_000i128, &f.user, &fresh_request_id(&f.env, 1));
+
+    // Advance past LEDGER_THRESHOLD once: reads should re-bump both the
+    // instance bucket (Admin/Asset/ProviderCount/Paused, via `is_paused`)
+    // and the persistent balance/provider/AUM keys.
+    f.env.ledger().set_sequence_number(LEDGER_THRESHOLD + 1);
+    assert_eq!(f.client.balance_of(&f.user), 100_000i128);
+    assert_eq!(f.client.get_total_aum(), 100_000i128);
+    assert_eq!(
+        f.client.get_provider(&f.provider_id).total_deposited,
+        100_000i128
+    );
+
+    // Advance past LEDGER_THRESHOLD again — only survives if the prior
+    // reads actually extended the TTL rather than leaving it to expire.
+    f.env.ledger().set_sequence_number(2 * LEDGER_THRESHOLD + 2);
+    assert_eq!(f.client.balance_of(&f.user), 100_000i128);
+
+    // A further gap, then a write from a fresh entrypoint (withdraw) must
+    // still succeed.
+    f.env.ledger().set_sequence_number(3 * LEDGER_THRESHOLD + 3);
+    let withdrawn = f
+        .client
+        .withdraw(&50_000i128, &f.user, &fresh_request_id(&f.env, 2));
+    assert_eq!(withdrawn, 50_000i128);
+    assert_eq!(f.client.balance_of(&f.user), 50_000i128);
 }

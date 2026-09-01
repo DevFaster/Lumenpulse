@@ -105,6 +105,11 @@ impl UpgradableContract {
         env.storage()
             .persistent()
             .set(&DataKey::QueuedOperation(id), &op);
+        env.storage().persistent().extend_ttl(
+            &DataKey::QueuedOperation(id),
+            LEDGER_THRESHOLD,
+            LEDGER_BUMP,
+        );
 
         env.storage()
             .instance()
@@ -126,10 +131,17 @@ impl UpgradableContract {
 
     /// Inspect a queued operation by its ID.
     pub fn get_operation(env: Env, operation_id: u32) -> Result<QueuedOperation, ContractError> {
-        env.storage()
+        let op = env
+            .storage()
             .persistent()
             .get(&DataKey::QueuedOperation(operation_id))
-            .ok_or(ContractError::OperationNotFound)
+            .ok_or(ContractError::OperationNotFound)?;
+        env.storage().persistent().extend_ttl(
+            &DataKey::QueuedOperation(operation_id),
+            LEDGER_THRESHOLD,
+            LEDGER_BUMP,
+        );
+        Ok(op)
     }
 
     /// Pending / Ready / Expired classification for a queued operation,
@@ -143,6 +155,11 @@ impl UpgradableContract {
             .persistent()
             .get(&DataKey::QueuedOperation(operation_id))
             .ok_or(ContractError::OperationNotFound)?;
+        env.storage().persistent().extend_ttl(
+            &DataKey::QueuedOperation(operation_id),
+            LEDGER_THRESHOLD,
+            LEDGER_BUMP,
+        );
         Ok(Self::operation_status(&env, &op))
     }
 
