@@ -159,6 +159,10 @@ describe('VerificationService', () => {
             },
           },
         },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
+        },
       ],
     });
 
@@ -203,6 +207,10 @@ describe('VerificationService', () => {
               return def;
             },
           },
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();
