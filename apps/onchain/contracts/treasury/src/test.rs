@@ -1,6 +1,21 @@
 use super::*;
 use soroban_sdk::testutils::{Address as _, Events, Ledger};
-use soroban_sdk::{token, vec, Address, BytesN, Env, String};
+use soroban_sdk::{token, vec, Address, BytesN, Env, IntoVal, String};
+
+/// Asserts that some event emitted by `contract_id` in the most recent
+/// invocation tree (`env.events().all()` reflects only that, not an
+/// accumulated history) has `topic_name` as its first topic.
+fn assert_event_emitted(env: &Env, contract_id: &Address, topic_name: &str) {
+    let events = env.events().all();
+    let found = events.iter().any(|(cid, topics, _)| {
+        cid == *contract_id
+            && topics.get(0).is_some_and(|t| {
+                let sym: soroban_sdk::Symbol = t.into_val(env);
+                sym == soroban_sdk::Symbol::new(env, topic_name)
+            })
+    });
+    assert!(found, "expected event `{topic_name}` was not emitted");
+}
 
 fn request_id(env: &Env) -> BytesN<32> {
     BytesN::from_array(env, &[0; 32])
@@ -1630,10 +1645,8 @@ fn test_configure_multisig_emits_multisig_configured_event() {
         },
     ];
 
-    let before = env.events().all().len();
     client.configure_multisig(&signers, &1);
-    let evts = env.events().all();
-    assert_eq!(evts.len(), before + 1);
+    assert_event_emitted(&env, &contract_id, "multisig_configured_event");
 }
 
 #[test]
@@ -1669,9 +1682,8 @@ fn test_set_multisig_config_emits_multisig_configured_event() {
 
     let pid = client.propose(&old_signer, &ProposalAction::SetAdmin);
 
-    let before = env.events().all().len();
     client.set_multisig_config(&old_signer, &pid, &new_signers, &1);
-    assert_eq!(env.events().all().len(), before + 1);
+    assert_event_emitted(&env, &contract_id, "multisig_configured_event");
 }
 
 #[test]
@@ -1681,10 +1693,9 @@ fn test_set_admin_via_multisig_emits_admin_changed_event() {
     let pid = f.client.propose(&f.signer_a, &ProposalAction::SetAdmin);
     f.client.sign_proposal(&f.signer_b, &pid);
 
-    let before = f.env.events().all().len();
     f.client
         .set_admin_via_multisig(&f.signer_a, &pid, &f.new_admin);
-    assert_eq!(f.env.events().all().len(), before + 1);
+    assert_event_emitted(&f.env, &f.client.address, "admin_changed_event");
 }
 
 #[test]
@@ -1697,10 +1708,12 @@ fn test_expire_proposal_emits_proposal_expired_event() {
 
     f.env.ledger().set_timestamp(2_000 + PROPOSAL_TTL_SECS + 1);
 
-    let before = f.env.events().all().len();
     f.client.expire_proposal(&pid);
+    // Check events before any further client calls — each top-level client
+    // invocation (even a read-only getter) resets what `env.events().all()`
+    // reflects to just that invocation's own events.
+    assert_event_emitted(&f.env, &f.client.address, "proposal_expired_event");
     assert_eq!(f.client.get_proposal(&pid).status, ProposalStatus::Expired);
-    assert_eq!(f.env.events().all().len(), before + 1);
 }
 
 #[test]
@@ -1738,11 +1751,10 @@ fn test_cancel_stream_emits_stream_cancelled_event() {
 
     env.ledger().set_timestamp(start_time + 500);
 
-    let before = env.events().all().len();
     let (claimed_total, refunded) = treasury_client.cancel_stream(&admin, &beneficiary);
     assert_eq!(claimed_total, 500);
     assert_eq!(refunded, 500);
-    assert_eq!(env.events().all().len(), before + 1);
+    assert_event_emitted(&env, &treasury_client.address, "stream_cancelled_event");
 }
 
 #[test]
@@ -1780,14 +1792,16 @@ fn test_emergency_stop_emits_emergency_stop_event() {
 
     env.ledger().set_timestamp(start_time + 500);
 
-    let before = env.events().all().len();
     let refunded = treasury_client.emergency_stop(
         &admin,
         &beneficiary,
         &String::from_str(&env, "Security breach"),
     );
-    assert_eq!(refunded, 500);
-    assert_eq!(env.events().all().len(), before + 1);
+    // `emergency_stop` refunds the full unclaimed remainder (total - claimed),
+    // not just the unvested portion — nothing was claimed here, so the full
+    // 1000 comes back regardless of how much vesting time has elapsed.
+    assert_eq!(refunded, 1000);
+    assert_event_emitted(&env, &treasury_client.address, "emergency_stop_event");
 }
 
 use proptest::prelude::*;

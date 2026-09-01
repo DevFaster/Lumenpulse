@@ -1424,9 +1424,10 @@ fn test_pause_emits_contract_pause_event() {
     let (client, admin, _, _) = setup(&env);
     client.initialize(&admin);
 
-    let before = env.events().all().len();
     client.pause(&admin);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -1437,9 +1438,8 @@ fn test_unpause_emits_contract_unpause_event() {
     client.initialize(&admin);
     client.pause(&admin);
 
-    let before = env.events().all().len();
     client.unpause(&admin);
-    assert!(env.events().all().len() > before);
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -1450,9 +1450,8 @@ fn test_set_admin_emits_admin_changed_event() {
     client.initialize(&admin);
     let new_admin = Address::generate(&env);
 
-    let before = env.events().all().len();
     client.set_admin(&admin, &new_admin);
-    assert!(env.events().all().len() > before);
+    assert!(!env.events().all().is_empty());
     assert_eq!(client.get_admin(), new_admin);
 }
 

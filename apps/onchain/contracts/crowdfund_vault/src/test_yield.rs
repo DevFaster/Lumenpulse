@@ -4,7 +4,7 @@ use soroban_sdk::{
     contract, contractimpl, symbol_short,
     testutils::{Address as _, Events},
     token::{StellarAssetClient, TokenClient},
-    Address, BytesN, Env,
+    Address, BytesN, Env, IntoVal,
 };
 
 #[contract]
@@ -212,8 +212,17 @@ fn test_set_yield_provider_emits_event() {
 
     client.set_yield_provider(&admin, &token_client.address, &yield_id);
 
-    // `env.events().all()` reflects only the most recent invocation.
-    assert_eq!(env.events().all().len(), 1);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, so we assert against events fired by
+    // `set_yield_provider` directly rather than an accumulated total.
+    let events = env.events().all();
+    assert!(!events.is_empty());
+    let (_contract_id, topics, _data) = events.last().unwrap();
+    let topic: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+    assert_eq!(
+        topic,
+        soroban_sdk::Symbol::new(&env, "yield_provider_set_event")
+    );
 }
 
 #[test]
@@ -240,7 +249,14 @@ fn test_invest_idle_funds_emits_event() {
 
     client.invest_idle_funds(&owner, &project_id, &300_000);
 
-    assert_eq!(env.events().all().len(), 1);
+    let events = env.events().all();
+    assert!(!events.is_empty());
+    let (_contract_id, topics, _data) = events.last().unwrap();
+    let topic: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+    assert_eq!(
+        topic,
+        soroban_sdk::Symbol::new(&env, "yield_invested_event")
+    );
 }
 
 #[test]
@@ -270,5 +286,12 @@ fn test_divest_funds_emits_event() {
     // auto-divest path exercised by `test_yield_investment_and_withdrawal`).
     client.divest_funds(&owner, &project_id, &100_000);
 
-    assert_eq!(env.events().all().len(), 1);
+    let events = env.events().all();
+    assert!(!events.is_empty());
+    let (_contract_id, topics, _data) = events.last().unwrap();
+    let topic: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+    assert_eq!(
+        topic,
+        soroban_sdk::Symbol::new(&env, "yield_divested_event")
+    );
 }

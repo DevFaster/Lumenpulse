@@ -155,10 +155,11 @@ fn test_queue_operation_emits_event() {
     let (_, client) = setup(&env);
     client.init(&admin);
 
-    let before = env.events().all().len();
     let action = TimelockAction::SetAdmin(new_admin);
     client.queue_operation(&admin, &action);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -282,14 +283,13 @@ fn test_cancel_operation_emits_event() {
     let (_, client) = setup(&env);
     client.init(&admin);
 
-    // `env.events().all()` reflects only the most recent invocation, so
-    // capture `before` prior to any call rather than between two calls.
-    let before = env.events().all().len();
     let action = TimelockAction::SetAdmin(new_admin);
     let id = client.queue_operation(&admin, &action);
     client.cancel_operation(&admin, &id);
 
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -467,9 +467,10 @@ fn test_execute_emits_event() {
 
     advance_to_ready(&env);
 
-    let before = env.events().all().len();
     client.execute_operation(&admin, &id);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -552,9 +553,10 @@ fn test_upgrade_via_queue_succeeds_after_delay() {
 
     advance_to_ready(&env);
 
-    let before = env.events().all().len();
     client.execute_operation(&admin, &id);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 
     // The operation is consumed, matching the SetAdmin path.
     assert_eq!(
@@ -678,9 +680,10 @@ fn test_propose_admin_rotation_emits_event() {
     let (_, client) = setup(&env);
     client.init(&admin);
 
-    let before = env.events().all().len();
     client.propose_admin_rotation(&admin, &new_admin);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -693,9 +696,10 @@ fn test_cancel_admin_rotation_emits_event() {
     client.init(&admin);
 
     client.propose_admin_rotation(&admin, &new_admin);
-    let before = env.events().all().len();
     client.cancel_admin_rotation(&admin);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]

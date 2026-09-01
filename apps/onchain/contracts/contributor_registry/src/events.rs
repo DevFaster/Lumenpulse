@@ -106,8 +106,12 @@ pub struct ReputationPenaltyAppliedEvent {
 ///
 /// `proposal_id == 0` indicates a self-service update; a non-zero value
 /// indicates an admin-managed update via the multisig of that proposal.
+// NOTE: kept as `...Evt` (not `...Event`) — Soroban's `#[contractevent]`
+// macro panics at compile time on struct names past ~29 chars (confirmed
+// empirically under issue #1231); `ContributorProfileChangedEvent` (30
+// chars) fails where this 28-char name succeeds.
 #[contractevent]
-pub struct ContributorProfileChangedEvent {
+pub struct ContributorProfileChangedEvt {
     #[topic]
     pub contributor: Address,
     /// Address that submitted the transaction. For admin updates this is the

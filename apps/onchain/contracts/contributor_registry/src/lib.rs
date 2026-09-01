@@ -9,7 +9,7 @@ use errors::ContributorError;
 use events::{
     AdminChangedEvent, AttestationRestoredEvent, AttestationRevokedEvent,
     AttestationSuspendedEvent, BadgeGrantedEvent, BadgeRevokedEvent, ContributorDeregisteredEvent,
-    ContributorProfileChangedEvent, ContributorRegisteredEvent, GaslessRegistrationEvent,
+    ContributorProfileChangedEvt, ContributorRegisteredEvent, GaslessRegistrationEvent,
     MultisigConfiguredEvent, ReputationPenaltyAppliedEvent, ReputationUpdatedEvent,
     ScopePauseChangedEvent, UpgradedEvent,
 };
@@ -376,7 +376,7 @@ impl ContributorRegistryContract {
     ///   via `consume_approval`. This path is used for handle corrections,
     ///   migrations, or recovery actions initiated by the multisig.
     ///
-    /// Either path emits `ContributorProfileChangedEvent` so the mutation is
+    /// Either path emits `ContributorProfileChangedEvt` so the mutation is
     /// fully auditable. Self-service updates carry `proposal_id = None` so
     /// the event consumer can distinguish the two paths.
     ///
@@ -456,7 +456,7 @@ impl ContributorRegistryContract {
             );
         }
 
-        ContributorProfileChangedEvent {
+        ContributorProfileChangedEvt {
             contributor: address,
             actor,
             new_github_handle: github_handle,
@@ -1121,12 +1121,28 @@ impl NotificationReceiverTrait for ContributorRegistryContract {
 mod test {
     use super::*;
     use soroban_sdk::{
-        testutils::{Address as TestAddress, Ledger}, // Ledger trait for set_timestamp
+        testutils::{Address as TestAddress, Events, Ledger}, // Ledger trait for set_timestamp
         Address,
         Bytes,
         Env,
+        IntoVal,
         Vec,
     };
+
+    /// Asserts that some event emitted by `contract_id` in the most recent
+    /// invocation tree (`env.events().all()` reflects only that, not an
+    /// accumulated history) has `topic_name` as its first topic.
+    fn assert_event_emitted(env: &Env, contract_id: &Address, topic_name: &str) {
+        let events = env.events().all();
+        let found = events.iter().any(|(cid, topics, _)| {
+            cid == *contract_id
+                && topics.get(0).is_some_and(|t| {
+                    let sym: soroban_sdk::Symbol = t.into_val(env);
+                    sym == soroban_sdk::Symbol::new(env, topic_name)
+                })
+        });
+        assert!(found, "expected event `{topic_name}` was not emitted");
+    }
 
     struct Setup {
         env: Env,
@@ -2553,5 +2569,65 @@ mod test {
         client.register_contributor(&contributor, &handle);
         client.grant_badge(&s.alice, &pid, &contributor, &Badge::BugHunter);
         assert_eq!(client.get_badges(&contributor).len(), 1);
+    }
+
+    // ── Event emission coverage (issue #1231) ───────────────────────────
+
+    #[test]
+    fn test_register_contributor_emits_event() {
+        let s = setup();
+        let client = ContributorRegistryContractClient::new(&s.env, &s.contract);
+
+        let contributor = Address::generate(&s.env);
+        let handle = soroban_sdk::String::from_str(&s.env, "evt_register");
+        client.register_contributor(&contributor, &handle);
+
+        assert_event_emitted(&s.env, &s.contract, "contributor_registered_event");
+    }
+
+    #[test]
+    fn test_deregister_contributor_emits_event() {
+        let s = setup();
+        let client = ContributorRegistryContractClient::new(&s.env, &s.contract);
+
+        let contributor = Address::generate(&s.env);
+        let handle = soroban_sdk::String::from_str(&s.env, "evt_deregister");
+        client.register_contributor(&contributor, &handle);
+
+        client.deregister_contributor(&contributor);
+
+        assert_event_emitted(&s.env, &s.contract, "contributor_deregistered_event");
+    }
+
+    #[test]
+    fn test_expire_proposal_emits_event() {
+        let s = setup();
+        let client = ContributorRegistryContractClient::new(&s.env, &s.contract);
+
+        s.env.ledger().set_timestamp(1_000_000);
+        let id = client.propose(&s.alice, &ProposalAction::Upgrade);
+
+        s.env
+            .ledger()
+            .set_timestamp(1_000_000 + multisig::PROPOSAL_TTL_SECS + 1);
+        client.expire_proposal(&id);
+
+        assert_event_emitted(&s.env, &s.contract, "proposal_expired_event");
+    }
+
+    #[test]
+    fn test_update_reputation_emits_event() {
+        let s = setup();
+        let client = ContributorRegistryContractClient::new(&s.env, &s.contract);
+
+        let contributor = Address::generate(&s.env);
+        let handle = soroban_sdk::String::from_str(&s.env, "evt_reputation");
+        client.register_contributor(&contributor, &handle);
+
+        let id = client.propose(&s.alice, &ProposalAction::UpdateReputation);
+        client.sign(&s.bob, &id);
+        client.update_reputation(&s.alice, &id, &contributor, &50i64);
+
+        assert_event_emitted(&s.env, &s.contract, "reputation_updated_event");
     }
 }

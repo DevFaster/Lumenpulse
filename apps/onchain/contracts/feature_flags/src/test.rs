@@ -3,7 +3,7 @@ use crate::storage::LEDGER_THRESHOLD;
 use crate::{FeatureFlagsContract, FeatureFlagsContractClient};
 use soroban_sdk::{
     symbol_short,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events, Ledger},
     Address, Env,
 };
 
@@ -194,9 +194,10 @@ fn test_pause_emits_event() {
     env.mock_all_auths();
     let (client, admin) = setup(&env);
 
-    let before = env.events().all().len();
     client.pause(&admin);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }
 
 #[test]
@@ -205,10 +206,8 @@ fn test_unpause_emits_event() {
     env.mock_all_auths();
     let (client, admin) = setup(&env);
 
-    // `unpause` has no "must currently be paused" precondition, so a fresh
-    // call is enough — avoids chaining two client calls, since
-    // `env.events().all()` reflects only the most recent invocation.
-    let before = env.events().all().len();
     client.unpause(&admin);
-    assert!(env.events().all().len() > before);
+    // `env.events().all()` reflects only the invocation tree of the most
+    // recent top-level client call, not an accumulated history.
+    assert!(!env.events().all().is_empty());
 }

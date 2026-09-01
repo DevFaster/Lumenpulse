@@ -3553,15 +3553,25 @@ fn test_fund_matching_pool_emits_event() {
 fn test_fund_reward_pool_emits_event() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, admin, _, _, token_client, token_admin_client, _) =
-        setup_test_with_admin(&env);
+    let (client, admin, _, _, token_client, token_admin_client, _) = setup_test_with_admin(&env);
     client.initialize(&admin);
 
     let pool_amount: i128 = 5_000_000;
     token_admin_client.mint(&admin, &pool_amount);
     client.fund_reward_pool(&admin, &token_client.address, &pool_amount);
 
-    assert_eq!(env.events().all().len(), 1);
+    // `env.events().all()` reflects the invocation tree of this single
+    // `fund_reward_pool` call (which also performs a nested token transfer,
+    // firing its own event) — find the vault's own `reward_pool_funded_event`
+    // among them rather than assuming a fixed position or count.
+    let events = env.events().all();
+    assert!(events.iter().any(|(contract_id, topics, _)| {
+        contract_id == client.address
+            && topics.get(0).is_some_and(|t| {
+                let sym: soroban_sdk::Symbol = t.into_val(&env);
+                sym == soroban_sdk::Symbol::new(&env, "reward_pool_funded_event")
+            })
+    }));
 }
 
 #[test]
@@ -3642,8 +3652,7 @@ fn test_allocate_to_streaming_treasury_emits_event() {
 }
 
 #[test]
-fn test_batch_payout_event_carries_request_id_and_token(
-) {
+fn test_batch_payout_event_carries_request_id_and_token() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, admin, _, _, token_client, token_admin_client, contract_address) =
@@ -3664,15 +3673,25 @@ fn test_batch_payout_event_carries_request_id_and_token(
         &request_id,
     );
 
+    // `env.events().all()` reflects the invocation tree of this single
+    // `batch_payout` call, which also performs a nested token transfer (its
+    // own event) — find the vault's own `contributor_payout_event` among
+    // them rather than assuming a fixed position or count.
     let events = env.events().all();
-    assert_eq!(events.len(), 1);
-    let (_contract_id, topics, _data) = events.first().unwrap();
+    let payout_event = events
+        .iter()
+        .find(|(contract_id, topics, _)| {
+            *contract_id == client.address
+                && topics.get(0).is_some_and(|t| {
+                    let sym: soroban_sdk::Symbol = t.into_val(&env);
+                    sym == soroban_sdk::Symbol::new(&env, "contributor_payout_event")
+                })
+        })
+        .expect("expected a contributor_payout_event from batch_payout");
+    let (_contract_id, topics, _data) = payout_event;
     // `recipient` and `request_id` are both `#[topic]` fields on
     // `ContributorPayoutEvent`; confirm the request_id topic round-trips so
     // the backend can attribute this payout to the batch that caused it.
-    let decoded_request_id: BytesN<32> = topics
-        .get(topics.len() - 1)
-        .unwrap()
-        .into_val(&env);
+    let decoded_request_id: BytesN<32> = topics.get(topics.len() - 1).unwrap().into_val(&env);
     assert_eq!(decoded_request_id, request_id);
 }
