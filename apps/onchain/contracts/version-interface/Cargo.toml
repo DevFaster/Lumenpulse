@@ -1,19 +1,15 @@
 [package]
-name = "lumen_token"
-version = "0.1.0"
+name = "version-interface"
+version = "0.0.0"
 edition = "2021"
+publish = false
 
 [lib]
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib"]
 doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-version-interface = { path = "../version-interface" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-
-[features]
-testutils = ["soroban-sdk/testutils"]
-

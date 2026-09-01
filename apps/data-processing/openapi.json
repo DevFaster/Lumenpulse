@@ -1456,6 +1456,71 @@
         }
       }
     },
+    "/api/lineage": {
+      "get": {
+        "tags": [
+          "Lineage"
+        ],
+        "summary": "List every registered feature and KPI dataset",
+        "description": "Return every ``id`` registered in the lineage manifest, so callers know\nwhat's valid to pass to ``GET /api/lineage/{feature_id}``.",
+        "operationId": "list_lineage_entries_api_lineage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lineage/{feature_id}": {
+      "get": {
+        "tags": [
+          "Lineage"
+        ],
+        "summary": "Get the upstream/downstream lineage graph for a feature or KPI",
+        "description": "Return the full upstream and downstream lineage for ``feature_id``,\nread live from ``feature_lineage.yaml``.\n\n* **upstream** \u2014 every source, feature, and KPI (transitively) feeding\n  this node, terminating in raw ingestion files where the manifest\n  doesn't track a further manifest entry.\n* **downstream** \u2014 every feature, KPI, and consuming API endpoint\n  (transitively) fed by this node.\n\nEach node carries its source system, transformation (formula or\ndescription), and owning module/team so a KPI can be traced back to\n\"what produced this and who owns it\" without opening the YAML.",
+        "operationId": "get_feature_lineage_api_lineage__feature_id__get",
+        "parameters": [
+          {
+            "name": "feature_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Feature Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageGraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/metrics": {
       "get": {
         "summary": "Metrics",
@@ -4062,6 +4127,271 @@
           "recommendation"
         ],
         "title": "LagAnalysisResponse"
+      },
+      "LineageEdgeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Manifest entry id, or the raw external ref"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "'ml_feature_set' | 'kpi_dataset' | 'external_source' (a raw file/module/API reference that isn't itself a manifest entry)"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "source_system": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source System",
+            "description": "Where this node's data originates \u2014 source table(s) or source file, or the raw reference itself for external sources."
+          },
+          "transformation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transformation",
+            "description": "Formula, or description, describing how this node is produced."
+          },
+          "owning_module": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owning Module",
+            "description": "Manifest 'module' value."
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Owning team/individual (email or @handle)."
+          },
+          "distance": {
+            "type": "integer",
+            "title": "Distance",
+            "description": "Hop count from the queried feature/dataset."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "display_name",
+          "distance"
+        ],
+        "title": "LineageEdgeResponse"
+      },
+      "LineageEntrySummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "display_name"
+        ],
+        "title": "LineageEntrySummary"
+      },
+      "LineageGraphResponse": {
+        "properties": {
+          "feature_id": {
+            "type": "string",
+            "title": "Feature Id"
+          },
+          "node": {
+            "$ref": "#/components/schemas/LineageNodeResponse"
+          },
+          "upstream": {
+            "items": {
+              "$ref": "#/components/schemas/LineageEdgeResponse"
+            },
+            "type": "array",
+            "title": "Upstream",
+            "description": "Everything that feeds this node, transitively."
+          },
+          "downstream": {
+            "items": {
+              "$ref": "#/components/schemas/LineageEdgeResponse"
+            },
+            "type": "array",
+            "title": "Downstream",
+            "description": "Everything this node feeds, transitively."
+          },
+          "manifest_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feature_id",
+          "node"
+        ],
+        "title": "LineageGraphResponse"
+      },
+      "LineageListResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LineageEntrySummary"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "entries"
+        ],
+        "title": "LineageListResponse"
+      },
+      "LineageNodeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Manifest entry id, or the raw external ref"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "'ml_feature_set' | 'kpi_dataset' | 'external_source' (a raw file/module/API reference that isn't itself a manifest entry)"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "source_system": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source System",
+            "description": "Where this node's data originates \u2014 source table(s) or source file, or the raw reference itself for external sources."
+          },
+          "transformation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transformation",
+            "description": "Formula, or description, describing how this node is produced."
+          },
+          "owning_module": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owning Module",
+            "description": "Manifest 'module' value."
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Owning team/individual (email or @handle)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "display_name"
+        ],
+        "title": "LineageNodeResponse"
       },
       "MetricDataPoint": {
         "properties": {
