@@ -270,7 +270,7 @@ export class ModerationService {
       );
     }
 
-    report.reviewerId = reviewerId || null;
+    report.reviewerId = reviewerId || undefined;
     const updatedReport = await this.reportsRepository.save(report);
 
     this.logger.log(

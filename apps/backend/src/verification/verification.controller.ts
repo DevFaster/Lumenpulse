@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import {
   Body,
   Controller,
@@ -41,11 +42,12 @@ import { Roles } from '../auth/decorators/auth.decorators';
 import { UserRole } from '../users/entities/user.entity';
 import { AuditBlockchainAction } from '../admin-audit/decorators/audit-blockchain-action.decorator';
 import { AdminAuditInterceptor } from '../admin-audit/interceptors/admin-audit.interceptor';
-import { Request } from 'express';
 
 interface RequestWithUser extends Request {
   user: {
     id: string;
+    email?: string;
+    role?: string;
   };
 }
 

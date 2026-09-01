@@ -21,6 +21,7 @@ import {
   SubmissionStatus,
   UpsertSubmissionDto,
 } from './dto/verification.dto';
+import { AuditService } from '../audit/audit.service';
 
 interface ProjectRecord {
   projectId: number;
@@ -55,8 +56,6 @@ interface ProjectSubmissionRecord {
   reviewNote?: string;
   updatedAt: number;
 }
-
-import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class VerificationService {
