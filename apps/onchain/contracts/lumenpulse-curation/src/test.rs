@@ -27,18 +27,13 @@ fn setup<'a>(env: &Env) -> (CommunityCurationContractClient<'a>, Address, Addres
 
 fn sample_metadata(env: &Env) -> ProjectMetadata {
     ProjectMetadata {
-        // NOTE: `emit_project_proposed` (events.rs) currently copies `name`
-        // into a fixed 32-byte stack buffer via `String::copy_into_slice`
-        // (panics unless the string is *exactly* 32 bytes) and then builds a
-        // `Symbol` from it (which only accepts `[A-Za-z0-9_]` — no spaces or
-        // punctuation). Both are apparent pre-existing bugs unrelated to
-        // TTL/storage: any realistic human-readable project name would
-        // panic `propose_project` outright. Using an exactly-32-byte,
-        // Symbol-safe literal here works around it so this TTL test can
-        // exercise `propose_project`; flagged separately, not fixed, since
-        // it's out of scope for issue #1226.
-        name: String::from_str(env, "TTL_Boundary_Test_Project_Name12"),
-        description: String::from_str(env, "A project proposed for TTL testing."),
+        // A realistic, human-readable name (spaces, mixed case, not 32
+        // bytes) — this used to panic `propose_project` outright (see
+        // `test_propose_project_with_realistic_name_emits_event` below,
+        // fixed under issue #1231) since `emit_project_proposed` forced the
+        // name through a fixed 32-byte buffer and a `Symbol` conversion.
+        name: String::from_str(env, "My Great Project"),
+        description: String::from_str(env, "A project proposed for testing."),
         url: String::from_str(env, "https://example.com"),
         funding_address: Address::generate(env),
     }

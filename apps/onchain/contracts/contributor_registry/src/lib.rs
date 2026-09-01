@@ -8,8 +8,9 @@ mod storage;
 use errors::ContributorError;
 use events::{
     AdminChangedEvent, AttestationRestoredEvent, AttestationRevokedEvent,
-    AttestationSuspendedEvent, BadgeGrantedEvent, BadgeRevokedEvent, ContributorProfileChangedEvt,
-    GaslessRegistrationEvent, MultisigConfiguredEvent, ReputationPenaltyAppliedEvent,
+    AttestationSuspendedEvent, BadgeGrantedEvent, BadgeRevokedEvent, ContributorDeregisteredEvent,
+    ContributorProfileChangedEvent, ContributorRegisteredEvent, GaslessRegistrationEvent,
+    MultisigConfiguredEvent, ReputationPenaltyAppliedEvent, ReputationUpdatedEvent,
     ScopePauseChangedEvent, UpgradedEvent,
 };
 use multisig::{
@@ -280,7 +281,12 @@ impl ContributorRegistryContract {
         Self::ensure_initialized(&env)?;
         Self::require_contribution_not_paused(&env)?;
         address.require_auth();
-        Self::write_contributor(&env, &address, &github_handle)
+        Self::write_contributor(&env, &address, &github_handle)?;
+        ContributorRegisteredEvent {
+            contributor: address,
+        }
+        .publish(&env);
+        Ok(())
     }
 
     /// Gasless / meta-transaction registration.
@@ -370,7 +376,7 @@ impl ContributorRegistryContract {
     ///   via `consume_approval`. This path is used for handle corrections,
     ///   migrations, or recovery actions initiated by the multisig.
     ///
-    /// Either path emits `ContributorProfileChangedEvt` so the mutation is
+    /// Either path emits `ContributorProfileChangedEvent` so the mutation is
     /// fully auditable. Self-service updates carry `proposal_id = None` so
     /// the event consumer can distinguish the two paths.
     ///
@@ -450,7 +456,7 @@ impl ContributorRegistryContract {
             );
         }
 
-        ContributorProfileChangedEvt {
+        ContributorProfileChangedEvent {
             contributor: address,
             actor,
             new_github_handle: github_handle,
@@ -482,13 +488,19 @@ impl ContributorRegistryContract {
         // State compaction: remove all three related entries atomically.
         env.storage()
             .persistent()
-            .remove(&DataKey::GitHubIndex(contributor.github_handle));
+            .remove(&DataKey::GitHubIndex(contributor.github_handle.clone()));
         env.storage()
             .persistent()
             .remove(&DataKey::Contributor(address.clone()));
         env.storage()
             .persistent()
-            .remove(&DataKey::RegistrationNonce(address));
+            .remove(&DataKey::RegistrationNonce(address.clone()));
+
+        ContributorDeregisteredEvent {
+            contributor: address,
+            freed_github_handle: contributor.github_handle,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -520,6 +532,7 @@ impl ContributorRegistryContract {
             LEDGER_BUMP,
         );
 
+        let old_score = contributor.reputation_score;
         let new_score = if delta > 0 {
             contributor
                 .reputation_score
@@ -535,10 +548,18 @@ impl ContributorRegistryContract {
             &contributor,
         );
         env.storage().persistent().extend_ttl(
-            &DataKey::Contributor(contributor_address),
+            &DataKey::Contributor(contributor_address.clone()),
             LEDGER_THRESHOLD,
             LEDGER_BUMP,
         );
+
+        ReputationUpdatedEvent {
+            contributor: contributor_address,
+            old_reputation: old_score,
+            new_reputation: new_score,
+        }
+        .publish(&env);
+
         Ok(())
     }
 

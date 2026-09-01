@@ -92,6 +92,23 @@ impl YieldVaultContract {
 
         env.storage().instance().set(&DataKey::Paused, &paused);
 
+        let timestamp = env.ledger().timestamp();
+        if paused {
+            events::ContractPauseEvent {
+                admin: caller,
+                paused,
+                timestamp,
+            }
+            .publish(&env);
+        } else {
+            events::ContractUnpauseEvent {
+                admin: caller,
+                paused,
+                timestamp,
+            }
+            .publish(&env);
+        }
+
         Ok(())
     }
 

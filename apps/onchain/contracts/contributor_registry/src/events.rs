@@ -107,7 +107,7 @@ pub struct ReputationPenaltyAppliedEvent {
 /// `proposal_id == 0` indicates a self-service update; a non-zero value
 /// indicates an admin-managed update via the multisig of that proposal.
 #[contractevent]
-pub struct ContributorProfileChangedEvt {
+pub struct ContributorProfileChangedEvent {
     #[topic]
     pub contributor: Address,
     /// Address that submitted the transaction. For admin updates this is the
@@ -145,6 +145,42 @@ pub struct AttestationRestoredEvent {
     pub contributor: Address,
     pub executor: Address,
     pub proposal_id: u64,
+}
+
+/// Emitted when a stale proposal is cleared via `expire_proposal`.
+#[contractevent]
+pub struct ProposalExpiredEvent {
+    #[topic]
+    pub proposal_id: u64,
+    pub expired_at: u64,
+}
+
+/// Emitted when a new contributor registers directly (non-gasless path).
+/// Reuses the same struct name `crowdfund_vault` uses for its own
+/// contributor registration, since both represent the same canonical event.
+#[contractevent]
+pub struct ContributorRegisteredEvent {
+    #[topic]
+    pub contributor: Address,
+}
+
+/// Emitted when a contributor removes their own registration, freeing their
+/// GitHub handle for reuse by someone else.
+#[contractevent]
+pub struct ContributorDeregisteredEvent {
+    #[topic]
+    pub contributor: Address,
+    pub freed_github_handle: String,
+}
+
+/// Emitted when a contributor's reputation score is adjusted via
+/// `update_reputation`.
+#[contractevent]
+pub struct ReputationUpdatedEvent {
+    #[topic]
+    pub contributor: Address,
+    pub old_reputation: u64,
+    pub new_reputation: u64,
 }
 
 /// Emitted whenever the pause state of a specific scope changes.

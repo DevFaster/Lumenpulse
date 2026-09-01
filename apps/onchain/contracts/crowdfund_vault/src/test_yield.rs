@@ -2,7 +2,7 @@ use crate::yield_provider::YieldProviderTrait;
 use crate::{CrowdfundVaultContract, CrowdfundVaultContractClient};
 use soroban_sdk::{
     contract, contractimpl, symbol_short,
-    testutils::Address as _,
+    testutils::{Address as _, Events},
     token::{StellarAssetClient, TokenClient},
     Address, BytesN, Env,
 };
@@ -198,4 +198,77 @@ fn test_yield_refund_divests_automatically() {
     // Verify user got their tokens back
     // User started with 10_000_000, deposited 500_000, should have 10_000_000 again.
     assert_eq!(token_client.balance(&user), 10_000_000);
+}
+
+// ── Event emission coverage (issue #1231) ──────────────────────────────────
+
+#[test]
+fn test_set_yield_provider_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, _owner, _user, token_client, yield_id) = setup_yield_test(&env);
+    client.initialize(&admin);
+
+    client.set_yield_provider(&admin, &token_client.address, &yield_id);
+
+    // `env.events().all()` reflects only the most recent invocation.
+    assert_eq!(env.events().all().len(), 1);
+}
+
+#[test]
+fn test_invest_idle_funds_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, owner, user, token_client, yield_id) = setup_yield_test(&env);
+    client.initialize(&admin);
+    client.set_yield_provider(&admin, &token_client.address, &yield_id);
+
+    let project_id = client.create_project(
+        &owner,
+        &symbol_short!("YieldPrj"),
+        &1_000_000,
+        &token_client.address,
+    );
+    client.deposit(
+        &user,
+        &project_id,
+        &500_000,
+        &BytesN::from_array(&env, &[76u8; 32]),
+    );
+
+    client.invest_idle_funds(&owner, &project_id, &300_000);
+
+    assert_eq!(env.events().all().len(), 1);
+}
+
+#[test]
+fn test_divest_funds_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, owner, user, token_client, yield_id) = setup_yield_test(&env);
+    client.initialize(&admin);
+    client.set_yield_provider(&admin, &token_client.address, &yield_id);
+
+    let project_id = client.create_project(
+        &owner,
+        &symbol_short!("YieldPrj"),
+        &1_000_000,
+        &token_client.address,
+    );
+    client.deposit(
+        &user,
+        &project_id,
+        &500_000,
+        &BytesN::from_array(&env, &[77u8; 32]),
+    );
+    client.invest_idle_funds(&owner, &project_id, &300_000);
+
+    // Direct call to the public `divest_funds` entrypoint (as opposed to the
+    // auto-divest path exercised by `test_yield_investment_and_withdrawal`).
+    client.divest_funds(&owner, &project_id, &100_000);
+
+    assert_eq!(env.events().all().len(), 1);
 }

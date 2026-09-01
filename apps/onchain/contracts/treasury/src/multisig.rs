@@ -3,7 +3,7 @@ use soroban_sdk::{Address, Env, Vec};
 use crate::errors::TreasuryError;
 use crate::events::{
     publish_proposal_cancelled, publish_proposal_created, publish_proposal_executed,
-    publish_signature_collected,
+    publish_proposal_expired, publish_signature_collected,
 };
 use crate::storage::{
     DataKey, MultisigConfig, Proposal, ProposalAction, ProposalStatus, Signer, LEDGER_BUMP,
@@ -118,8 +118,9 @@ pub(crate) fn configure(
 }
 
 /// Replace the multisig signer set. Used by `set_multisig_config`, which is
-/// itself a gated action. Emits `MultisigConfiguredEvt` so the signer-set
-/// rotation is fully auditable.
+/// itself a gated action; `set_multisig_config` publishes
+/// `MultisigConfiguredEvent` after this call so the signer-set rotation is
+/// fully auditable.
 pub(crate) fn replace_config(
     env: &Env,
     signers: Vec<Signer>,
@@ -315,6 +316,8 @@ pub(crate) fn expire(env: &Env, proposal_id: u64) -> Result<(), TreasuryError> {
     env.storage()
         .instance()
         .set(&DataKey::Proposal(proposal_id), &proposal);
+
+    publish_proposal_expired(env, proposal_id, env.ledger().timestamp());
 
     Ok(())
 }

@@ -735,3 +735,26 @@ fn test_ttl_extended_after_read_write() {
     assert_eq!(withdrawn, 50_000i128);
     assert_eq!(f.client.balance_of(&f.user), 50_000i128);
 }
+
+// ── Event emission coverage (issue #1231) ──────────────────────────────────
+
+#[test]
+fn test_set_paused_true_emits_pause_event() {
+    let f = setup();
+
+    let before = f.env.events().all().len();
+    f.client.set_paused(&f.admin, &true);
+    assert!(f.env.events().all().len() > before);
+}
+
+#[test]
+fn test_set_paused_false_emits_unpause_event() {
+    let f = setup();
+
+    // No "must currently be paused" precondition, so a fresh call is
+    // enough — `env.events().all()` reflects only the most recent
+    // invocation, so chaining two client calls would hide the first.
+    let before = f.env.events().all().len();
+    f.client.set_paused(&f.admin, &false);
+    assert!(f.env.events().all().len() > before);
+}

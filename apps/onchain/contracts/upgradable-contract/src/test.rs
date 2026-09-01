@@ -667,6 +667,51 @@ fn test_admin_rotation_cancel() {
     );
 }
 
+// ── Event emission coverage (issue #1231) ──────────────────────────────────
+
+#[test]
+fn test_propose_admin_rotation_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (_, client) = setup(&env);
+    client.init(&admin);
+
+    let before = env.events().all().len();
+    client.propose_admin_rotation(&admin, &new_admin);
+    assert!(env.events().all().len() > before);
+}
+
+#[test]
+fn test_cancel_admin_rotation_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (_, client) = setup(&env);
+    client.init(&admin);
+
+    client.propose_admin_rotation(&admin, &new_admin);
+    let before = env.events().all().len();
+    client.cancel_admin_rotation(&admin);
+    assert!(env.events().all().len() > before);
+}
+
+#[test]
+fn test_cancel_admin_rotation_without_proposal_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (_, client) = setup(&env);
+    client.init(&admin);
+
+    assert_eq!(
+        client.try_cancel_admin_rotation(&admin),
+        Err(Ok(ContractError::OperationNotFound))
+    );
+}
+
 #[test]
 fn test_contract_version() {
     use version_interface::ContractVersion;

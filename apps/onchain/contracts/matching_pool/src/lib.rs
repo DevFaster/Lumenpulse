@@ -917,6 +917,12 @@ impl MatchingPoolContract {
     pub fn pause(env: Env, admin: Address) -> Result<(), MatchingPoolError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &true);
+        events::ContractPauseEvent {
+            admin,
+            paused: true,
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -925,6 +931,12 @@ impl MatchingPoolContract {
     pub fn unpause(env: Env, admin: Address) -> Result<(), MatchingPoolError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &false);
+        events::ContractUnpauseEvent {
+            admin,
+            paused: false,
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -942,6 +954,11 @@ impl MatchingPoolContract {
         Self::require_admin(&env, &current_admin)?;
         Self::require_governance_not_paused(&env)?;
         env.storage().instance().set(&DataKey::Admin, &new_admin);
+        events::AdminChangedEvent {
+            old_admin: current_admin,
+            new_admin,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -952,7 +969,13 @@ impl MatchingPoolContract {
     ) -> Result<(), MatchingPoolError> {
         Self::require_admin(&env, &caller)?;
         Self::require_governance_not_paused(&env)?;
-        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
+        events::UpgradedEvent {
+            admin: caller,
+            new_wasm_hash,
+        }
+        .publish(&env);
         Ok(())
     }
 }

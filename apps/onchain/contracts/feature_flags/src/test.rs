@@ -185,3 +185,30 @@ fn test_ttl_extended_after_read_write() {
     assert!(client.is_enabled(&symbol_short!("flag_b")));
     assert_eq!(client.get_admin(), admin);
 }
+
+// ── Event emission coverage (issue #1231) ──────────────────────────────────
+
+#[test]
+fn test_pause_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+
+    let before = env.events().all().len();
+    client.pause(&admin);
+    assert!(env.events().all().len() > before);
+}
+
+#[test]
+fn test_unpause_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+
+    // `unpause` has no "must currently be paused" precondition, so a fresh
+    // call is enough — avoids chaining two client calls, since
+    // `env.events().all()` reflects only the most recent invocation.
+    let before = env.events().all().len();
+    client.unpause(&admin);
+    assert!(env.events().all().len() > before);
+}

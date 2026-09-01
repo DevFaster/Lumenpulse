@@ -2,7 +2,7 @@ use crate::errors::MatchingPoolError;
 use crate::{MatchingPoolContract, MatchingPoolContractClient};
 use soroban_sdk::{
     symbol_short,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events, Ledger},
     token::{StellarAssetClient, TokenClient},
     vec, Address, Env,
 };
@@ -1414,3 +1414,56 @@ fn test_ttl_extended_across_round_lifecycle() {
     assert_eq!(client.get_pool_balance(&round_id), 0);
     assert!(client.get_finalized_at(&round_id) > 0);
 }
+
+// ── Event emission coverage (issue #1231) ─────────────────────────────────
+
+#[test]
+fn test_pause_emits_contract_pause_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _, _) = setup(&env);
+    client.initialize(&admin);
+
+    let before = env.events().all().len();
+    client.pause(&admin);
+    assert!(env.events().all().len() > before);
+}
+
+#[test]
+fn test_unpause_emits_contract_unpause_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _, _) = setup(&env);
+    client.initialize(&admin);
+    client.pause(&admin);
+
+    let before = env.events().all().len();
+    client.unpause(&admin);
+    assert!(env.events().all().len() > before);
+}
+
+#[test]
+fn test_set_admin_emits_admin_changed_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _, _) = setup(&env);
+    client.initialize(&admin);
+    let new_admin = Address::generate(&env);
+
+    let before = env.events().all().len();
+    client.set_admin(&admin, &new_admin);
+    assert!(env.events().all().len() > before);
+    assert_eq!(client.get_admin(), new_admin);
+}
+
+// Note: a "successful upgrade emits UpgradedEvent" test isn't included here
+// — exercising a real `update_current_contract_wasm` call requires a valid
+// deployable WASM fixture (see `upgradable-contract`'s
+// `include_bytes!("./mock/upgradable_contract.wasm")`, which this crate has
+// no equivalent of), and this codebase's other upgradeable contracts (e.g.
+// `crowdfund_vault`) likewise only test the pre-upgrade authorization
+// rejection path, not a successful upgrade, for the same reason. The
+// `events::UpgradedEvent` publish call added above mirrors `crowdfund_vault`'s
+// exact pattern (publish immediately after `update_current_contract_wasm`
+// succeeds), so it's covered by code-shape parity with that reference
+// implementation rather than a dedicated runtime test.

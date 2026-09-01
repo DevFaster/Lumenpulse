@@ -6,8 +6,8 @@ mod storage;
 
 use errors::ContractError;
 use events::{
-    AdminChangedEvent, OperationCancelledEvent, OperationExecutedEvent, OperationQueuedEvent,
-    UpgradedEvent,
+    AdminChangedEvent, AdminRotationCancelledEvent, AdminRotationProposedEvent,
+    OperationCancelledEvent, OperationExecutedEvent, OperationQueuedEvent, UpgradedEvent,
 };
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
 use storage::{
@@ -280,6 +280,11 @@ impl UpgradableContract {
         env.storage()
             .instance()
             .set(&DataKey::ProposedAdmin, &new_admin);
+        AdminRotationProposedEvent {
+            proposer,
+            proposed_admin: new_admin,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -310,7 +315,17 @@ impl UpgradableContract {
 
     pub fn cancel_admin_rotation(env: Env, canceller: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &canceller)?;
+        let proposed_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::ProposedAdmin)
+            .ok_or(ContractError::OperationNotFound)?;
         env.storage().instance().remove(&DataKey::ProposedAdmin);
+        AdminRotationCancelledEvent {
+            canceller,
+            proposed_admin,
+        }
+        .publish(&env);
         Ok(())
     }
 
