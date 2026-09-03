@@ -223,7 +223,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
   }
 
-  private logFailedSimulationTrace(tx: any, result: any): void {
+  private logFailedSimulationTrace(tx: unknown, result: unknown): void {
     // Log the failed simulation trace for debugging purposes
     this.logger.error('Simulation trace failed', {
       transaction: tx,
