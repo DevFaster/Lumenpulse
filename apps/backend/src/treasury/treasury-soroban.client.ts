@@ -28,10 +28,6 @@ const NETWORK_PASSPHRASES = {
   mainnet: Networks.PUBLIC,
 } as const;
 
-const DEFAULT_SOROBAN_RPC_URLS = {
-  testnet: 'https://soroban-testnet.stellar.org',
-  mainnet: 'https://soroban.stellar.org',
-} as const;
 
 /** How long to poll for transaction confirmation before giving up. */
 const TX_CONFIRMATION_TIMEOUT_MS = 30_000;
@@ -116,6 +112,9 @@ export class TreasurySorobanClient {
 
     try {
       const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      if (!sourceAccount) {
+        throw new Error('Failed to retrieve source account');
+      }
 
       const contract = new Contract(contractId);
       const operation = contract.call(
@@ -137,7 +136,8 @@ export class TreasurySorobanClient {
 
       const simulation = await this.sorobanRpc.simulateTransaction(tx);
       if (rpc.Api.isSimulationError(simulation)) {
-        throw toTreasuryException(simulation.error, params.beneficiary);
+        const errorMsg = typeof simulation.error === 'string' ? simulation.error : String(simulation.error);
+        throw toTreasuryException(errorMsg, params.beneficiary);
       }
 
       const prepared = rpc.assembleTransaction(tx, simulation).build();
@@ -166,6 +166,9 @@ export class TreasurySorobanClient {
 
     try {
       const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      if (!sourceAccount) {
+        throw new Error('Failed to retrieve source account');
+      }
 
       const contract = new Contract(contractId);
       const operation = contract.call(
@@ -185,7 +188,8 @@ export class TreasurySorobanClient {
 
       const simulation = await this.sorobanRpc.simulateTransaction(tx);
       if (rpc.Api.isSimulationError(simulation)) {
-        throw toTreasuryException(simulation.error, params.oldBeneficiary);
+        const errorMsg = typeof simulation.error === 'string' ? simulation.error : String(simulation.error);
+        throw toTreasuryException(errorMsg, params.oldBeneficiary);
       }
 
       const prepared = rpc.assembleTransaction(tx, simulation).build();

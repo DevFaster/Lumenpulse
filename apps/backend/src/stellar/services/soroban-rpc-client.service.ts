@@ -162,8 +162,8 @@ export class SorobanRpcClientService {
         if (operations.length === 1) {
           const op = this.asRecord(operations[0]);
           const hostFunction = op.func ?? op.hostFunction;
-          if (hostFunction && typeof (hostFunction as any).toXDR === 'function') {
-            const funcXdr = (hostFunction as any).toXDR('base64');
+          if (hostFunction && typeof hostFunction === 'object' && 'toXDR' in hostFunction) {
+            const funcXdr = (hostFunction as { toXDR: (encoding: string) => string }).toXDR('base64');
             expectedLedgerSequence = await this.getLatestLedgerSequence();
             cacheKey = `${funcXdr}_${expectedLedgerSequence}`;
 

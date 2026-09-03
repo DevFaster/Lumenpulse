@@ -28,10 +28,6 @@ const NETWORK_PASSPHRASES = {
   mainnet: Networks.PUBLIC,
 } as const;
 
-const DEFAULT_SOROBAN_RPC_URLS = {
-  testnet: 'https://soroban-testnet.stellar.org',
-  mainnet: 'https://soroban.stellar.org',
-} as const;
 
 const TX_CONFIRMATION_TIMEOUT_MS = 30_000;
 const TX_POLL_INTERVAL_MS = 1_500;
@@ -96,6 +92,9 @@ export class VestingWalletSorobanClient {
 
     try {
       const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      if (!sourceAccount) {
+        throw new Error('Failed to retrieve source account');
+      }
       const contract = new Contract(contractId);
 
       const operation = contract.call(
@@ -145,6 +144,9 @@ export class VestingWalletSorobanClient {
 
     try {
       const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      if (!sourceAccount) {
+        throw new Error('Failed to retrieve source account');
+      }
       const contract = new Contract(contractId);
 
       const milestoneLinkScVal = xdr.ScVal.scvVec([
@@ -235,6 +237,9 @@ export class VestingWalletSorobanClient {
       const sourceAccount = await this.sorobanRpc.getAccount(
         this.getAdminKeypair().publicKey(),
       );
+      if (!sourceAccount) {
+        throw new Error('Failed to retrieve source account');
+      }
       const tx = new TransactionBuilder(sourceAccount, {
         fee: BASE_INCLUSION_FEE,
         networkPassphrase: this.getNetworkPassphrase(),
@@ -252,7 +257,10 @@ export class VestingWalletSorobanClient {
         );
       }
 
-      const claimable = scValToNative(simulation.result!.retval) as bigint;
+      if (!simulation.result?.retval) {
+        throw new Error('Invalid simulation result');
+      }
+      const claimable = scValToNative(simulation.result.retval) as bigint;
       return claimable;
     } catch (error) {
       throw this.normalizeError(error);
