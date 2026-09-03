@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  Account,
   Address,
   Contract,
   Keypair,
@@ -111,8 +112,8 @@ export class TreasurySorobanClient {
     const keypair = this.getAdminKeypair();
 
     try {
-      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey()) as Account;
-      if (!sourceAccount) {
+      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      if (!(sourceAccount instanceof Account)) {
         throw new Error('Failed to retrieve source account');
       }
 
@@ -165,8 +166,8 @@ export class TreasurySorobanClient {
 
 
     try {
-      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey()) as Account;
-      if (!sourceAccount) {
+      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      if (!(sourceAccount instanceof Account)) {
         throw new Error('Failed to retrieve source account');
       }
 
