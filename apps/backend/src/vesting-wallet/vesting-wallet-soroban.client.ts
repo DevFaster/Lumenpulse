@@ -14,7 +14,7 @@ import {
 import { config } from '../lib/config';
 import { BadRequestException } from '@nestjs/common';
 import { ErrorCode } from '../common/enums/error-code.enum';
-import { SorobanRpcError } from '../stellar/services/soroban-rpc-client.service';
+import { SorobanRpcError, SorobanRpcClientService } from '../stellar/services/soroban-rpc-client.service';
 import {
   VestingWalletNotConfiguredException,
   VestingWalletRpcUnavailableException,
@@ -91,7 +91,7 @@ export class VestingWalletSorobanClient {
     const keypair = this.getAdminKeypair();
 
     try {
-      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey()) as Account;
       if (!sourceAccount) {
         throw new Error('Failed to retrieve source account');
       }
@@ -143,7 +143,7 @@ export class VestingWalletSorobanClient {
 
 
     try {
-      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey());
+      const sourceAccount = await this.sorobanRpc.getAccount(keypair.publicKey()) as Account;
       if (!sourceAccount) {
         throw new Error('Failed to retrieve source account');
       }
@@ -236,7 +236,7 @@ export class VestingWalletSorobanClient {
 
       const sourceAccount = await this.sorobanRpc.getAccount(
         this.getAdminKeypair().publicKey(),
-      );
+      ) as Account;
       if (!sourceAccount) {
         throw new Error('Failed to retrieve source account');
       }

@@ -6,7 +6,9 @@ import {
   TransactionBuilder,
   BASE_FEE,
   Contract,
+  Transaction,
 } from '@stellar/stellar-sdk';
+import { SorobanRpcApi } from '@stellar/stellar-sdk/rpc';
 import { Counter, Histogram, Registry } from 'prom-client';
 import { config } from '../../lib/config';
 import { RequestContextService } from '../../common/services/request-context.service';
@@ -129,7 +131,7 @@ export class SorobanRpcClientService {
   }
 
   private cachedLedger = { sequence: 0, expiresAt: 0 };
-  private readonly simulationCache = new Map<string, rpc.Api.SimulateTransactionResponse>();
+  private readonly simulationCache = new Map<string, SorobanRpcApi.SimulateTransactionResponse>();
 
   private async getLatestLedgerSequence(): Promise<number> {
     const now = Date.now();
@@ -146,9 +148,9 @@ export class SorobanRpcClientService {
 
   /** Simulate a transaction with retries */
   async simulateTransaction(
-    tx: Parameters<rpc.Server['simulateTransaction']>[0],
+    tx: Transaction | string,
     opts?: SorobanClientOptions,
-  ): Promise<rpc.Api.SimulateTransactionResponse> {
+  ): Promise<SorobanRpcApi.SimulateTransactionResponse> {
     const isReadOnly = opts?.isReadOnly ?? false;
     const cacheEnabled = config.stellar.simulationCacheEnabled !== false;
 
@@ -179,7 +181,7 @@ export class SorobanRpcClientService {
     }
 
     return this.withRetry('simulateTransaction', opts, async () => {
-      const result = await this.server.simulateTransaction(tx);
+      const result = await this.server.simulateTransaction(tx as any);
       if (rpc.Api.isSimulationError(result)) {
         this.logFailedSimulationTrace(tx, result);
         throw new SorobanRpcError(
@@ -193,24 +195,24 @@ export class SorobanRpcClientService {
         this.simulationCache.set(cacheKey, result);
       }
 
-      return result;
+      return result as any;
     });
   }
 
   /** Send a transaction with retries */
   async sendTransaction(
-    tx: Parameters<rpc.Server['sendTransaction']>[0],
+    tx: Transaction | string,
     opts?: SorobanClientOptions,
-  ): Promise<rpc.Api.SendTransactionResponse> {
+  ): Promise<SorobanRpcApi.SendTransactionResponse> {
     return this.withRetry('sendTransaction', opts, async () => {
-      const result = await this.server.sendTransaction(tx);
+      const result = await this.server.sendTransaction(tx as any);
       if (result.status === 'ERROR') {
         throw new SorobanRpcError(
           SorobanErrorCode.SUBMISSION_FAILED,
           `Transaction submission failed: ${JSON.stringify(result.errorResult ?? 'Unknown')}`,
         );
       }
-      return result;
+      return result as any;
     });
   }
 
@@ -218,9 +220,9 @@ export class SorobanRpcClientService {
   async getTransaction(
     hash: string,
     opts?: SorobanClientOptions,
-  ): Promise<rpc.Api.GetTransactionResponse> {
+  ): Promise<SorobanRpcApi.GetTransactionResponse> {
     return this.withRetry('getTransaction', opts, async () => {
-      return this.server.getTransaction(hash);
+      return this.server.getTransaction(hash) as any;
     });
   }
 
@@ -232,7 +234,7 @@ export class SorobanRpcClientService {
     method: string,
     networkPassphrase: string,
     opts?: SorobanClientOptions,
-  ): Promise<rpc.Api.SimulateTransactionResponse> {
+  ): Promise<SorobanRpcApi.SimulateTransactionResponse> {
     const tx = new TransactionBuilder(
       new Account(sourceAccountId, sourceSequence),
       { fee: BASE_FEE, networkPassphrase },
