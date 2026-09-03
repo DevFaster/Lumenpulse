@@ -6,7 +6,7 @@ mod storage;
 
 use errors::RegistryError;
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
-use storage::{DataKey, ContractInfo};
+use storage::{ContractInfo, DataKey};
 
 #[contract]
 pub struct ContractRegistry;
@@ -68,20 +68,26 @@ impl ContractRegistry {
             version,
             environment: env_meta.clone(),
         };
-        
+
         let contract_key = DataKey::Contract(key.clone());
         if !env.storage().persistent().has(&contract_key) {
             let mut keys: Vec<Symbol> = env
                 .storage()
                 .instance()
                 .get(&DataKey::ContractKeys)
-                .unwrap_or_else(|| Vec::new());
+                .unwrap_or_else(|| Vec::new(&env));
             keys.push_back(key.clone());
             env.storage().instance().set(&DataKey::ContractKeys, &keys);
         }
-        
+
         env.storage().persistent().set(&contract_key, &info);
-        events::ContractRegisteredEvent { key, address, version, env: env_meta }.publish(&env);
+        events::ContractRegisteredEvent {
+            key,
+            address,
+            version,
+            env: env_meta,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -95,18 +101,32 @@ impl ContractRegistry {
     ) -> Result<(), RegistryError> {
         Self::require_admin(&env, &admin)?;
         // Ensure contract exists
-        env.storage().persistent().get(&DataKey::Contract(key.clone()))
-            .ok_or(RegistryError::ContractNotFound)?;
-        let info = ContractInfo { key: key.clone(), address, version, environment: env_meta };
+        if !env.storage().persistent().has(&DataKey::Contract(key.clone())) {
+            return Err(RegistryError::ContractNotFound);
+        }
+        let info = ContractInfo {
+            key: key.clone(),
+            address,
+            version,
+            environment: env_meta,
+        };
         env.storage().persistent().set(&DataKey::Contract(key.clone()), &info);
-        events::ContractUpdatedEvent { key, version, env: env_meta }.publish(&env);
+        events::ContractUpdatedEvent {
+            key,
+            version,
+            env: env_meta,
+        }
+        .publish(&env);
         Ok(())
     }
 
     pub fn get_contract(env: Env, key: Symbol) -> Result<ContractInfo, RegistryError> {
-        env.storage().persistent()
+        let contract: ContractInfo = env
+            .storage()
+            .persistent()
             .get(&DataKey::Contract(key))
-            .ok_or(RegistryError::ContractNotFound)
+            .ok_or(RegistryError::ContractNotFound)?;
+        Ok(contract)
     }
 
     pub fn list_contracts(env: Env) -> Result<Vec<ContractInfo>, RegistryError> {
@@ -114,10 +134,10 @@ impl ContractRegistry {
             .storage()
             .instance()
             .get(&DataKey::ContractKeys)
-            .unwrap_or_else(|| Vec::new());
-            
-        let mut contracts = Vec::new();
-        for key in keys.into_iter() {
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut contracts = Vec::new(&env);
+        for key in keys.iter() {
             if let Some(info) = env.storage().persistent().get(&DataKey::Contract(key)) {
                 contracts.push_back(info);
             }
