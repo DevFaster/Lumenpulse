@@ -127,7 +127,7 @@ export class VestingWalletSorobanClient {
       prepared.sign(keypair);
 
       return await this.submitAndConfirm(prepared);
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }
@@ -186,7 +186,7 @@ export class VestingWalletSorobanClient {
       prepared.sign(keypair);
 
       return await this.submitAndConfirm(prepared);
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }
@@ -216,7 +216,7 @@ export class VestingWalletSorobanClient {
 
       const scVal = response.entries[0].val.contractData().val();
       return this.decodeVestingData(scVal);
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }
@@ -262,7 +262,7 @@ export class VestingWalletSorobanClient {
       }
       const claimable = scValToNative(simulation.result.retval) as bigint;
       return claimable;
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }

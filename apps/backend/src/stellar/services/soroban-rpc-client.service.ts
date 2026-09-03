@@ -8,7 +8,6 @@ import {
   Contract,
   Transaction,
 } from '@stellar/stellar-sdk';
-import { SorobanRpcApi } from '@stellar/stellar-sdk/rpc';
 import { Counter, Histogram, Registry } from 'prom-client';
 import { config } from '../../lib/config';
 import { RequestContextService } from '../../common/services/request-context.service';
@@ -131,7 +130,7 @@ export class SorobanRpcClientService {
   }
 
   private cachedLedger = { sequence: 0, expiresAt: 0 };
-  private readonly simulationCache = new Map<string, SorobanRpcApi.SimulateTransactionResponse>();
+  private readonly simulationCache = new Map<string, rpc.Api.SimulateTransactionResponse>();
 
   private async getLatestLedgerSequence(): Promise<number> {
     const now = Date.now();
@@ -148,9 +147,9 @@ export class SorobanRpcClientService {
 
   /** Simulate a transaction with retries */
   async simulateTransaction(
-    tx: Transaction | string,
+    tx: Parameters<rpc.Server['simulateTransaction']>[0] | Transaction | string,
     opts?: SorobanClientOptions,
-  ): Promise<SorobanRpcApi.SimulateTransactionResponse> {
+  ): Promise<rpc.Api.SimulateTransactionResponse> {
     const isReadOnly = opts?.isReadOnly ?? false;
     const cacheEnabled = config.stellar.simulationCacheEnabled !== false;
 
@@ -175,13 +174,13 @@ export class SorobanRpcClientService {
             }
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
         this.logger.debug(`Failed to compute simulation cache key: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     return this.withRetry('simulateTransaction', opts, async () => {
-      const result = await this.server.simulateTransaction(tx as any);
+      const result = await this.server.simulateTransaction(tx as Parameters<rpc.Server['simulateTransaction']>[0]);
       if (rpc.Api.isSimulationError(result)) {
         this.logFailedSimulationTrace(tx, result);
         throw new SorobanRpcError(
@@ -195,24 +194,24 @@ export class SorobanRpcClientService {
         this.simulationCache.set(cacheKey, result);
       }
 
-      return result as any;
+      return result;
     });
   }
 
   /** Send a transaction with retries */
   async sendTransaction(
-    tx: Transaction | string,
+    tx: Parameters<rpc.Server['sendTransaction']>[0] | Transaction | string,
     opts?: SorobanClientOptions,
-  ): Promise<SorobanRpcApi.SendTransactionResponse> {
+  ): Promise<rpc.Api.SendTransactionResponse> {
     return this.withRetry('sendTransaction', opts, async () => {
-      const result = await this.server.sendTransaction(tx as any);
+      const result = await this.server.sendTransaction(tx as Parameters<rpc.Server['sendTransaction']>[0]);
       if (result.status === 'ERROR') {
         throw new SorobanRpcError(
           SorobanErrorCode.SUBMISSION_FAILED,
           `Transaction submission failed: ${JSON.stringify(result.errorResult ?? 'Unknown')}`,
         );
       }
-      return result as any;
+      return result;
     });
   }
 
@@ -220,9 +219,9 @@ export class SorobanRpcClientService {
   async getTransaction(
     hash: string,
     opts?: SorobanClientOptions,
-  ): Promise<SorobanRpcApi.GetTransactionResponse> {
+  ): Promise<rpc.Api.GetTransactionResponse> {
     return this.withRetry('getTransaction', opts, async () => {
-      return this.server.getTransaction(hash) as any;
+      return this.server.getTransaction(hash);
     });
   }
 
@@ -234,7 +233,7 @@ export class SorobanRpcClientService {
     method: string,
     networkPassphrase: string,
     opts?: SorobanClientOptions,
-  ): Promise<SorobanRpcApi.SimulateTransactionResponse> {
+  ): Promise<rpc.Api.SimulateTransactionResponse> {
     const tx = new TransactionBuilder(
       new Account(sourceAccountId, sourceSequence),
       { fee: BASE_FEE, networkPassphrase },
@@ -270,7 +269,7 @@ export class SorobanRpcClientService {
         const result = await this.withTimeout(fn(), timeoutMs);
         timer({ status: 'success' });
         return result;
-      } catch (err) {
+      } catch (err: unknown) {
         attempt++;
         const isRetryable = this.isRetryable(err);
         const exhausted = attempt > maxRetries;

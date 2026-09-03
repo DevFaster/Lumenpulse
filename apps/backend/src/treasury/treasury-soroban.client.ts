@@ -144,7 +144,7 @@ export class TreasurySorobanClient {
       prepared.sign(keypair);
 
       return await this.submitAndConfirm(prepared);
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }
@@ -196,7 +196,7 @@ export class TreasurySorobanClient {
       prepared.sign(keypair);
 
       return await this.submitAndConfirm(prepared);
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }
@@ -273,7 +273,7 @@ export class TreasurySorobanClient {
 
       const scVal = response.entries[0].val.contractData().val();
       return this.decodeStreamData(scVal);
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.normalizeError(error);
     }
   }
