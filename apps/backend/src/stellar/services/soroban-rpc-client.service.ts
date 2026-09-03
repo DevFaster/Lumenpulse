@@ -66,6 +66,7 @@ const DEFAULT_OPTIONS: Required<SorobanClientOptions> = {
   timeoutMs: config.stellar.timeout ?? 30_000,
   maxRetries: 3,
   initialBackoffMs: 500,
+  isReadOnly: false,
 };
 
 @Injectable()
@@ -182,7 +183,7 @@ export class SorobanRpcClientService {
     return this.withRetry('simulateTransaction', opts, async () => {
       const result = await this.server.simulateTransaction(tx as Parameters<rpc.Server['simulateTransaction']>[0]);
       if (rpc.Api.isSimulationError(result)) {
-        this.logFailedSimulationTrace(tx, result);
+        this.logFailedSimulationTrace(tx, result as rpc.Api.SimulateTransactionErrorResponse);
         throw new SorobanRpcError(
           SorobanErrorCode.SIMULATION_FAILED,
           `Simulation failed: ${result.error ?? 'Unknown error'}`,
