@@ -338,7 +338,7 @@ export class SorobanRpcClientService {
   }
 
   private logFailedSimulationTrace(
-    tx: Parameters<rpc.Server['simulateTransaction']>[0],
+    tx: unknown,
     result: rpc.Api.SimulateTransactionErrorResponse,
   ): void {
     const traceLevel = config.stellar
@@ -369,7 +369,7 @@ export class SorobanRpcClientService {
   }
 
   private extractContractInvocation(
-    tx: Parameters<rpc.Server['simulateTransaction']>[0],
+    tx: unknown,
   ): ContractInvocationSummary {
     const record = this.asRecord(tx);
     const operations = Array.isArray(record.operations)
