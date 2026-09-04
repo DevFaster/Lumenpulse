@@ -101,7 +101,11 @@ impl ContractRegistry {
     ) -> Result<(), RegistryError> {
         Self::require_admin(&env, &admin)?;
         // Ensure contract exists
-        if !env.storage().persistent().has(&DataKey::Contract(key.clone())) {
+        if !env
+            .storage()
+            .persistent()
+            .has(&DataKey::Contract(key.clone()))
+        {
             return Err(RegistryError::ContractNotFound);
         }
         let info = ContractInfo {
@@ -110,7 +114,9 @@ impl ContractRegistry {
             version,
             environment: env_meta,
         };
-        env.storage().persistent().set(&DataKey::Contract(key.clone()), &info);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Contract(key.clone()), &info);
         events::ContractUpdatedEvent {
             key,
             version,

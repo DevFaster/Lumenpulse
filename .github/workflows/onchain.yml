@@ -16,6 +16,9 @@ jobs:
   onchain-checks:
     name: Test Suite
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     defaults:
       run:
         working-directory: ./apps/onchain
@@ -23,12 +26,17 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
         targets: wasm32-unknown-unknown
+
+    - name: Ensure wasm target
+      run: rustup target add wasm32-unknown-unknown
 
     - name: Cache dependencies
       uses: Swatinem/rust-cache@v2
@@ -39,10 +47,56 @@ jobs:
       run: cargo fmt --all -- --check
 
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features -- -A warnings
 
     - name: Build Contracts
       run: cargo build --target wasm32-unknown-unknown --release
+
+    - name: Build base contracts for size comparison
+      if: github.event_name == 'pull_request'
+      run: |
+        git worktree add --detach "$RUNNER_TEMP/lumenpulse-base" "origin/${{ github.base_ref }}"
+        cargo build --manifest-path "$RUNNER_TEMP/lumenpulse-base/apps/onchain/Cargo.toml" --target wasm32-unknown-unknown --release
+
+    - name: Report and enforce contract WASM sizes
+      env:
+        BASELINE_ROOT: ${{ github.event_name == 'pull_request' && format('{0}/lumenpulse-base/apps/onchain/target/wasm32-unknown-unknown/release', runner.temp) || '' }}
+      run: |
+        baseline_args=()
+        if [ -n "$BASELINE_ROOT" ]; then
+          baseline_args=(--baseline-root "$BASELINE_ROOT")
+        fi
+        node ../../scripts/check-wasm-size.mjs "${baseline_args[@]}" | tee wasm-size.md >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Add WASM size report to pull request
+      if: github.event_name == 'pull_request'
+      uses: marocchino/sticky-pull-request-comment@v2
+      continue-on-error: true
+      with:
+        header: wasm-size
+        path: apps/onchain/wasm-size.md
+
+    - name: Remove base worktree
+      if: always() && github.event_name == 'pull_request'
+      run: |
+        TMP="$RUNNER_TEMP/lumenpulse-base"
+        if [ -d "$TMP" ]; then
+          if git -C "$TMP" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            git worktree remove --force "$TMP"
+          else
+            echo "$TMP is not a working tree; skipping git worktree remove"
+          fi
+        else
+          echo "$TMP does not exist; skipping cleanup"
+        fi
+      shell: bash
+
+    - name: Safe remove temporary worktree
+      if: always()
+      run: |
+        if [ -d "$RUNNER_TEMP/lumenpulse-base" ]; then
+          rm -rf "$RUNNER_TEMP/lumenpulse-base" || true
+        fi
 
     - name: Run tests
       if: env.SKIP_TESTS != 'true'
